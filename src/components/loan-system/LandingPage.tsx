@@ -33,15 +33,9 @@ type CheckoutStep = 'PAYMENT_METHOD' | 'PIX_PAYMENT' | 'CARD_PAYMENT' | 'PROCESS
 export function LandingPage({ onEnterApp }: LandingPageProps) {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('PAYMENT_METHOD');
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('CREATE_ACCOUNT');
   const [loading, setLoading] = useState(false);
   const { setUser } = useAppStore();
-
-  // Form states for checkout
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
 
   // Form states for account registration
   const [regName, setRegName] = useState('');
@@ -54,47 +48,44 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
 
   const handleOpenCheckout = () => {
     setIsCheckoutOpen(true);
-    setCheckoutStep('PAYMENT_METHOD');
+    setCheckoutStep('CREATE_ACCOUNT');
   };
 
   const handleCloseCheckout = () => {
     setIsCheckoutOpen(false);
     // Reset states
-    setCardName('');
-    setCardNumber('');
-    setCardExpiry('');
-    setCardCvv('');
     setRegName('');
     setRegEmail('');
     setRegPassword('');
   };
 
-  // Simulating Pix automatic detection after 5 seconds
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isCheckoutOpen && checkoutStep === 'PIX_PAYMENT') {
-      timer = setTimeout(() => {
-        setCheckoutStep('PROCESSING');
-        setTimeout(() => {
-          setCheckoutStep('CREATE_ACCOUNT');
-          toast.success('Pagamento via Pix confirmado com sucesso!');
-        }, 1500);
-      }, 5000);
-    }
-    return () => clearTimeout(timer);
-  }, [checkoutStep, isCheckoutOpen]);
+  const handleStripeCheckout = async () => {
+    setLoading(true);
+    try {
+      const state = useAppStore.getState();
+      const token = state.token;
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+      });
 
-  const handleCardPaymentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
-      toast.error('Preencha todos os dados do cartão');
-      return;
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || 'Erro ao iniciar checkout');
+        setLoading(false);
+        return;
+      }
+
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error('Erro de conexão ao iniciar checkout');
+      setLoading(false);
     }
-    setCheckoutStep('PROCESSING');
-    setTimeout(() => {
-      setCheckoutStep('CREATE_ACCOUNT');
-      toast.success('Assinatura aprovada no cartão!');
-    }, 2000);
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -150,8 +141,9 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       // Store user in zustand store
       setTimeout(() => {
         setUser(loginData.user, loginData.token);
-        setCheckoutStep('SUCCESS');
+        setCheckoutStep('PAYMENT_METHOD');
         setLoading(false);
+        toast.success('Conta criada com sucesso! Prossiga para o pagamento.');
       }, 1000);
 
     } catch (err) {
@@ -552,188 +544,13 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
             {/* Modal Content based on step */}
             <div className="p-6">
               
-              {/* STEP 1: Choose Payment Method */}
-              {checkoutStep === 'PAYMENT_METHOD' && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Você está assinando o Plano Completo</p>
-                    <p className="text-3xl font-black text-foreground mt-1">R$ 14,90<span className="text-xs text-muted-foreground font-normal">/mês</span></p>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground text-center">Selecione o método de pagamento para iniciar:</p>
-                  
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={() => setCheckoutStep('PIX_PAYMENT')}
-                      className="w-full p-4 bg-secondary hover:bg-surface-elevated border border-border hover:border-neon/40 rounded-2xl flex items-center gap-4 transition-all text-left cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-neon/10 border border-neon/20 flex items-center justify-center text-neon">
-                        <QrCode className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-foreground">Pagar com Pix</div>
-                        <div className="text-xs text-muted-foreground">Aprovação imediata e automática</div>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => setCheckoutStep('CARD_PAYMENT')}
-                      className="w-full p-4 bg-secondary hover:bg-surface-elevated border border-border hover:border-neon/40 rounded-2xl flex items-center gap-4 transition-all text-left cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-neon/10 border border-neon/20 flex items-center justify-center text-neon">
-                        <CreditCard className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-foreground">Cartão de Crédito</div>
-                        <div className="text-xs text-muted-foreground">Cobrança recorrente mensal</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: Pix Payment Details */}
-              {checkoutStep === 'PIX_PAYMENT' && (
-                <div className="space-y-6 text-center">
-                  <div>
-                    <span className="text-xs text-muted-foreground">Valor a pagar</span>
-                    <p className="text-xl font-bold text-neon">R$ 14,90</p>
-                  </div>
-
-                  {/* Faux QR Code premium styling */}
-                  <div className="w-40 h-40 mx-auto bg-white p-3 rounded-2xl flex items-center justify-center shadow-lg relative group">
-                    <div className="absolute inset-0 bg-gradient-to-tr from-neon/10 to-transparent pointer-events-none rounded-2xl" />
-                    {/* Dummy matrix rendering to look like a QR code */}
-                    <div className="grid grid-cols-8 gap-1 w-full h-full opacity-90">
-                      {Array.from({ length: 64 }).map((_, i) => {
-                        const isFilled = (i % 2 === 0 && i % 3 !== 0) || (i < 16 && i % 4 === 0) || (i > 48 && i % 5 === 0);
-                        return (
-                          <div 
-                            key={i} 
-                            className={`rounded-[2px] ${isFilled ? 'bg-background' : 'bg-transparent'}`} 
-                          />
-                        );
-                      })}
-                    </div>
-                    {/* Floating padlock overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-10 h-10 rounded-full bg-neon text-background flex items-center justify-center shadow-lg">
-                        <Lock className="w-5 h-5" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">Escaneie o QR Code acima ou copie a chave Pix abaixo:</p>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        readOnly 
-                        value="00020101021226870014br.gov.bcb.pix2565tamoquite-app-checkout-1490-prod-uuid"
-                        className="flex-1 h-10 px-3 bg-secondary border border-border rounded-xl text-[10px] text-muted-foreground focus:outline-none select-all"
-                      />
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText("00020101021226870014br.gov.bcb.pix2565tamoquite-app-checkout-1490-prod-uuid");
-                          toast.success('Código Pix copiado!');
-                        }}
-                        className="h-10 px-4 bg-neon hover:bg-neon/90 text-background rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        Copiar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2.5 text-xs text-muted-foreground/80 bg-secondary/50 py-2.5 px-4 rounded-xl border border-border/40">
-                    <Loader2 className="w-4 h-4 text-neon animate-spin" />
-                    <span>Aguardando pagamento... (Simulação automática)</span>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 3: Card Details Form */}
-              {checkoutStep === 'CARD_PAYMENT' && (
-                <form onSubmit={handleCardPaymentSubmit} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Nome no Cartão</label>
-                    <input 
-                      type="text" 
-                      placeholder="JOAO S SILVA" 
-                      required
-                      value={cardName}
-                      onChange={(e) => setCardName(e.target.value.toUpperCase())}
-                      className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-neon/50 focus:ring-1 focus:ring-neon/20 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Número do Cartão</label>
-                    <input 
-                      type="text" 
-                      maxLength={19}
-                      placeholder="0000 0000 0000 0000" 
-                      required
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').replace(/(\d{4})/g, '$1 ').trim())}
-                      className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-neon/50 focus:ring-1 focus:ring-neon/20 transition-all"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Validade</label>
-                      <input 
-                        type="text" 
-                        maxLength={5}
-                        placeholder="MM/AA" 
-                        required
-                        value={cardExpiry}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          setCardExpiry(val.length > 2 ? `${val.slice(0, 2)}/${val.slice(2, 4)}` : val);
-                        }}
-                        className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-neon/50 focus:ring-1 focus:ring-neon/20 transition-all text-center"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">CVV</label>
-                      <input 
-                        type="text" 
-                        maxLength={3}
-                        placeholder="000" 
-                        required
-                        value={cardCvv}
-                        onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))}
-                        className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-neon/50 focus:ring-1 focus:ring-neon/20 transition-all text-center"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full h-12 bg-neon hover:bg-neon/90 text-background font-bold rounded-xl transition-all duration-200 mt-4 cursor-pointer text-sm flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(0,255,163,0.15)]"
-                  >
-                    Confirmar Assinatura (R$ 14,90)
-                  </button>
-                </form>
-              )}
-
-              {/* STEP 4: Processing Animation */}
-              {checkoutStep === 'PROCESSING' && (
-                <div className="py-12 flex flex-col items-center justify-center space-y-4">
-                  <Loader2 className="w-12 h-12 text-neon animate-spin" />
-                  <p className="text-sm font-semibold text-foreground">Processando sua transação...</p>
-                  <p className="text-xs text-muted-foreground">Por favor, não feche esta janela.</p>
-                </div>
-              )}
-
-              {/* STEP 5: Create User Account */}
+              {/* STEP 1: Create User Account */}
               {checkoutStep === 'CREATE_ACCOUNT' && (
                 <form onSubmit={handleRegisterSubmit} className="space-y-4">
                   <div className="text-center mb-4">
-                    <p className="text-xs text-neon uppercase font-bold tracking-wider">Pagamento Aprovado! 🎉</p>
+                    <p className="text-xs text-neon uppercase font-bold tracking-wider">Passo 1 de 2</p>
                     <h3 className="text-lg font-bold text-foreground mt-1">Crie sua conta de acesso</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Insira seus dados para começar a usar o TamoQuite.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Insira seus dados para criar a conta e continuar para a etapa de assinatura.</p>
                   </div>
 
                   <div className="space-y-1.5">
@@ -799,12 +616,52 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        Criar Conta & Entrar
+                        Criar Conta & Continuar
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
                 </form>
+              )}
+
+              {/* STEP 2: Stripe Checkout Information and Button */}
+              {checkoutStep === 'PAYMENT_METHOD' && (
+                <div className="space-y-6 text-center">
+                  <div className="text-center">
+                    <p className="text-xs text-neon uppercase font-bold tracking-wider">Passo 2 de 2</p>
+                    <h3 className="text-lg font-bold text-foreground mt-1">Assinatura Premium</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Você está assinando o Plano Completo do TamoQuite.</p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-secondary/30 border border-border/80 text-left space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-foreground font-medium">Plano Completo</span>
+                      <span className="text-lg font-bold text-neon">R$ 14,90 / mês</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Libere acesso ilimitado a cadastros de devedores, empréstimos, atualizações de juros e cobranças por WhatsApp. Sem fidelidade, cancele quando quiser.
+                    </p>
+                  </div>
+
+                  <button 
+                    onClick={handleStripeCheckout}
+                    disabled={loading}
+                    className="w-full h-12 bg-neon text-background font-bold rounded-xl hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        Ir para o Pagamento Seguro
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[10px] text-muted-foreground/60">
+                    Você será redirecionado para a plataforma segura do Stripe para concluir a transação.
+                  </p>
+                </div>
               )}
 
               {/* STEP 6: Success Redirect */}

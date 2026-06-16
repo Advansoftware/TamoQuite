@@ -104,8 +104,9 @@ export function LoanDetailView() {
 
   const paidCount = loan.installments.filter((i) => i.status === 'PAID').length;
   const paidAmount = loan.installments.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
-  const remainingAmount = loan.totalAmount - paidAmount;
-  const progressPercent = loan.totalAmount > 0 ? (paidAmount / loan.totalAmount) * 100 : 0;
+  const totalAmount = loan.installments.reduce((sum, i) => sum + i.amount, 0);
+  const remainingAmount = loan.installments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
+  const progressPercent = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
 
   const handlePayFull = async (inst: Installment) => {
     setSubmitting(true);
@@ -259,7 +260,7 @@ export function LoanDetailView() {
           </div>
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1">Total</p>
-            <p className="text-sm font-bold text-neon">{formatCurrency(loan.totalAmount)}</p>
+            <p className="text-sm font-bold text-neon">{formatCurrency(totalAmount)}</p>
           </div>
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1">Juros</p>

@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
         name: true,
         role: true,
         mustChangePassword: true,
+        subscriptionStatus: true,
         createdAt: true,
       },
     });

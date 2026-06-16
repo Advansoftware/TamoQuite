@@ -15,6 +15,9 @@ model SystemUser {
   role             String       @default("CLIENT")
   mustChangePassword Boolean     @default(true)
   isActive         Boolean      @default(true)
+  stripeCustomerId     String?
+  stripeSubscriptionId  String?
+  subscriptionStatus   String?      @default("INACTIVE")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   borrowers        Borrower[]

@@ -8,6 +8,7 @@ interface AuthUser {
   name: string;
   role: string;
   mustChangePassword: boolean;
+  subscriptionStatus: string | null;
 }
 
 interface AppState {

@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api';
 
 interface DashboardData {
   totalMonthly: number;
+  totalMonthlyPending: number;
   receivedMonthly: number;
   upcomingInstallments: Array<{
     id: string;
@@ -111,7 +112,7 @@ export function DashboardView() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mb-1">A Receber (Mês)</p>
-          <p className="text-lg font-bold text-foreground">{formatCurrency(data.totalMonthly)}</p>
+          <p className="text-lg font-bold text-foreground">{formatCurrency(data.totalMonthlyPending)}</p>
         </div>
 
         <div className="bg-surface rounded-2xl p-4 border border-border card-hover">
@@ -140,7 +141,7 @@ export function DashboardView() {
               <DollarSign className="w-4 h-4 text-foreground" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mb-1">Total Pendente</p>
+          <p className="text-xs text-muted-foreground mb-1">Total a Receber</p>
           <p className="text-lg font-bold text-foreground">{formatCurrency(data.totalOutstanding)}</p>
         </div>
       </div>

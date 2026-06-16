@@ -34,8 +34,17 @@ export async function GET(request: NextRequest) {
     });
 
     const totalMonthly = monthlyInsts.reduce((s, i) => s + i.amount, 0);
-    const receivedMonthly = monthlyInsts
-      .filter((i) => i.status === 'PAID' || i.status === 'PARTIAL')
+
+    const totalMonthlyPending = monthlyInsts
+      .filter((i) => i.status !== 'PAID')
+      .reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
+
+    const receivedMonthly = allInstallments
+      .filter((i) => {
+        if (!i.paidAt) return false;
+        const d = new Date(i.paidAt);
+        return d >= monthStart && d <= monthEnd;
+      })
       .reduce((s, i) => s + (i.paidAmount || 0), 0);
 
     const fifteenDays = new Date(now);
@@ -92,6 +101,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       totalMonthly: Math.round(totalMonthly * 100) / 100,
+      totalMonthlyPending: Math.round(totalMonthlyPending * 100) / 100,
       receivedMonthly: Math.round(receivedMonthly * 100) / 100,
       upcomingInstallments: upcoming,
       overdueInstallments: overdue,

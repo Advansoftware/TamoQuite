@@ -79,7 +79,10 @@ export function BorrowerDetailView() {
 
   if (!borrower) return null;
 
-  const totalLent = borrower.loans.reduce((sum, l) => sum + l.totalAmount, 0);
+  const totalLent = borrower.loans.reduce(
+    (sum, l) => sum + l.installments.reduce((s, i) => s + i.amount, 0),
+    0
+  );
   const totalReceived = borrower.loans.reduce(
     (sum, l) => sum + l.installments.reduce((s, i) => s + (i.paidAmount || 0), 0),
     0
@@ -244,8 +247,9 @@ export function BorrowerDetailView() {
             {borrower.loans.map((loan, index) => {
               const paidCount = loan.installments.filter((i) => i.status === 'PAID').length;
               const paidAmount = loan.installments.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
-              const progress = loan.totalAmount > 0 ? (paidAmount / loan.totalAmount) * 100 : 0;
-              const remaining = loan.totalAmount - paidAmount;
+              const loanTotalAmount = loan.installments.reduce((sum, i) => sum + i.amount, 0);
+              const progress = loanTotalAmount > 0 ? (paidAmount / loanTotalAmount) * 100 : 0;
+              const remaining = loanTotalAmount - paidAmount;
               const contractHasOverdue = loan.installments.some((i) => i.status === 'OVERDUE');
               
               return (
@@ -267,7 +271,7 @@ export function BorrowerDetailView() {
                           </span>
                         )}
                       </div>
-                      <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(loan.totalAmount)}</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(loanTotalAmount)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${

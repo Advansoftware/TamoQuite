@@ -7,6 +7,7 @@ export interface AuthUser {
   name: string;
   role: string;
   mustChangePassword: boolean;
+  subscriptionStatus: string | null;
 }
 
 export async function verifyCredentials(email: string, password: string): Promise<AuthUser | null> {
@@ -22,6 +23,7 @@ export async function verifyCredentials(email: string, password: string): Promis
     name: user.name,
     role: user.role,
     mustChangePassword: user.mustChangePassword,
+    subscriptionStatus: user.subscriptionStatus,
   };
 }
 
@@ -35,6 +37,7 @@ export async function getUserById(id: string): Promise<AuthUser | null> {
     name: user.name,
     role: user.role,
     mustChangePassword: user.mustChangePassword,
+    subscriptionStatus: user.subscriptionStatus,
   };
 }
 
