@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, apiPut, apiDelete, getApiError } from '@/lib/api';
 import { formatPhone, formatCurrency, formatDate } from '@/lib/helpers';
-import { Plus, Search, Phone, Trash2, User, ChevronRight, MessageCircle } from 'lucide-react';
+import { Plus, Search, Phone, Trash2, User, ChevronRight, MessageCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,11 @@ interface Borrower {
   notes: string | null;
   createdAt: string;
   _count: { loans: number };
+  loans?: Array<{
+    installments: Array<{
+      status: string;
+    }>;
+  }>;
 }
 
 export function BorrowersView() {
@@ -164,25 +169,37 @@ export function BorrowersView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((b) => (
-            <div
-              key={b.id}
-              className="bg-surface rounded-xl p-4 border border-border card-hover"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-neon-dim flex items-center justify-center shrink-0">
-                  <span className="text-neon font-bold text-sm">
-                    {b.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0" onClick={() => selectBorrower(b.id)}>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-foreground truncate">{b.name}</p>
-                    {b._count.loans > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-neon-dim text-neon font-medium">
-                        {b._count.loans}
-                      </span>
-                    )}
+          {filtered.map((b) => {
+            const hasOverdue = b.loans?.some(l => l.installments?.some(i => i.status === 'OVERDUE')) || false;
+            return (
+              <div
+                key={b.id}
+                className={`bg-surface rounded-xl p-4 border card-hover ${
+                  hasOverdue ? 'border-danger/30 bg-danger/5' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    hasOverdue ? 'bg-danger/20' : 'bg-neon-dim'
+                  }`}>
+                    <span className={`font-bold text-sm ${hasOverdue ? 'text-danger' : 'text-neon'}`}>
+                      {b.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => selectBorrower(b.id)}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-semibold text-foreground truncate">{b.name}</p>
+                      {hasOverdue && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          Atrasado
+                        </span>
+                      )}
+                      {b._count.loans > 0 && !hasOverdue && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-neon-dim text-neon font-medium">
+                          {b._count.loans}
+                        </span>
+                      )}
                   </div>
                   <div className="flex items-center gap-1 mt-0.5">
                     <Phone className="w-3 h-3 text-muted-foreground" />
@@ -216,7 +233,8 @@ export function BorrowersView() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 

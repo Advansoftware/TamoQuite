@@ -30,7 +30,7 @@ interface Loan {
   status: string;
   createdAt: string;
   borrower: { name: string; whatsapp: string };
-  installments: Array<{ id: string; status: string; amount: number; }>;
+  installments: Array<{ id: string; status: string; amount: number; paidAmount: number; }>;
 }
 
 

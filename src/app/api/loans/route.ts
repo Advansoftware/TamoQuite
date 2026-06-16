@@ -45,7 +45,12 @@ export async function POST(request: NextRequest) {
     const installmentValue = totalAmount / installmentCount;
 
     const start = new Date(startDate);
-    const installmentsData = [];
+    const installmentsData: Array<{
+      installmentNumber: number;
+      dueDate: Date;
+      amount: number;
+      status: string;
+    }> = [];
     for (let i = 1; i <= installmentCount; i++) {
       const dueDate = new Date(start);
       dueDate.setMonth(dueDate.getMonth() + i);

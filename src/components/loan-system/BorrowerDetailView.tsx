@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, getApiError } from '@/lib/api';
-import { formatPhone, formatCurrency, formatDate } from '@/lib/helpers';
-import { Plus, FileText, ArrowRight, ChevronRight, MessageCircle } from 'lucide-react';
+import { formatPhone, formatCurrency, formatDate, generateWhatsAppLink } from '@/lib/helpers';
+import { Plus, FileText, ArrowRight, ChevronRight, MessageCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,8 @@ interface BorrowerDetail {
       status: string;
       amount: number;
       paidAmount: number;
+      installmentNumber: number;
+      dueDate: string;
     }>;
   }>;
 }
@@ -39,14 +41,20 @@ export function BorrowerDetailView() {
   const [borrower, setBorrower] = useState<BorrowerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
+  const [selectedOverdueIds, setSelectedOverdueIds] = useState<string[]>([]);
 
   const fetchBorrower = useCallback(async () => {
     if (!selectedBorrowerId) return;
     setLoading(true);
     try {
       const res = await apiFetch(`/api/borrowers/${selectedBorrowerId}`);
-      const json = await res.json();
+      const json: BorrowerDetail = await res.json();
       setBorrower(json);
+      
+      if (json && json.loans) {
+        const overdue = json.loans.flatMap(l => l.installments).filter(i => i.status === 'OVERDUE');
+        setSelectedOverdueIds(overdue.map(i => i.id));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -76,6 +84,12 @@ export function BorrowerDetailView() {
     (sum, l) => sum + l.installments.reduce((s, i) => s + (i.paidAmount || 0), 0),
     0
   );
+  const totalRemaining = totalLent - totalReceived;
+
+  const overdueInstallments = borrower.loans
+    .flatMap((l) => l.installments.map((i) => ({ ...i, loanId: l.id })))
+    .filter((i) => i.status === 'OVERDUE');
+  const hasOverdue = overdueInstallments.length > 0;
 
 
 
@@ -110,23 +124,99 @@ export function BorrowerDetailView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-surface rounded-2xl p-4 border border-border">
-          <p className="text-xs text-muted-foreground mb-1">Total Emprestado</p>
-          <p className="text-base font-bold text-foreground">{formatCurrency(totalLent)}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-surface rounded-xl p-3 border border-border text-center">
+          <p className="text-[10px] text-muted-foreground mb-0.5">Total Emprestado</p>
+          <p className="text-xs font-bold text-foreground truncate">{formatCurrency(totalLent)}</p>
         </div>
-        <div className="bg-surface rounded-2xl p-4 border border-border">
-          <p className="text-xs text-muted-foreground mb-1">Total Recebido</p>
-          <p className="text-base font-bold text-neon">{formatCurrency(totalReceived)}</p>
+        <div className="bg-surface rounded-xl p-3 border border-border text-center">
+          <p className="text-[10px] text-muted-foreground mb-0.5">Total Recebido</p>
+          <p className="text-xs font-bold text-neon truncate">{formatCurrency(totalReceived)}</p>
+        </div>
+        <div className="bg-surface rounded-xl p-3 border border-border text-center">
+          <p className="text-[10px] text-muted-foreground mb-0.5">Saldo Devedor</p>
+          <p className="text-xs font-bold text-warning truncate">{formatCurrency(totalRemaining)}</p>
         </div>
       </div>
+
+      {/* Cobrança Consolidada */}
+      {hasOverdue && (
+        <div className="bg-danger/10 border border-danger/20 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-danger shrink-0 animate-pulse" />
+            <h3 className="text-sm font-bold text-danger">Cobrança de Parcelas Atrasadas</h3>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Selecione as parcelas que deseja cobrar de uma vez só via WhatsApp:
+          </p>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {overdueInstallments.map((inst) => {
+              const isChecked = selectedOverdueIds.includes(inst.id);
+              const loanIndex = borrower.loans.findIndex((l) => l.id === inst.loanId);
+              const loanNumber = borrower.loans.length - loanIndex;
+              const remaining = inst.amount - (inst.paidAmount || 0);
+
+              return (
+                <label
+                  key={inst.id}
+                  className="flex items-center justify-between p-2.5 bg-surface border border-border/50 hover:bg-secondary/20 rounded-xl cursor-pointer text-xs transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setSelectedOverdueIds((prev) => prev.filter((id) => id !== inst.id));
+                        } else {
+                          setSelectedOverdueIds((prev) => [...prev, inst.id]);
+                        }
+                      }}
+                      className="accent-danger h-4 w-4 shrink-0 rounded cursor-pointer"
+                    />
+                    <div>
+                      <p className="font-semibold text-foreground">Contrato #{loanNumber} — Parcela #{inst.installmentNumber}</p>
+                      <p className="text-muted-foreground text-[10px]">Venceu em {formatDate(inst.dueDate)}</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-danger shrink-0">{formatCurrency(remaining)}</span>
+                </label>
+              );
+            })}
+          </div>
+
+          <button
+            disabled={selectedOverdueIds.length === 0}
+            onClick={() => {
+              const selectedInsts = overdueInstallments.filter((i) => selectedOverdueIds.includes(i.id));
+              const totalAmount = selectedInsts.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
+
+              let msg = `Olá ${borrower.name}! 💰 Passando para lembrar das parcelas em aberto:\n\n`;
+              selectedInsts.forEach((i) => {
+                const loanIndex = borrower.loans.findIndex((l) => l.id === i.loanId);
+                const loanNumber = borrower.loans.length - loanIndex;
+                const remaining = i.amount - (i.paidAmount || 0);
+                msg += `• *Contrato #${loanNumber} — Parcela #${i.installmentNumber}* (Venceu dia ${formatDate(i.dueDate)}): *${formatCurrency(remaining)}*\n`;
+              });
+              msg += `\n*Total em aberto selecionado: ${formatCurrency(totalAmount)}*\n\nSe precisar da chave Pix ou do código de pagamento, me avise aqui. Tamo junto! 🤝`;
+
+              const waLink = generateWhatsAppLink(borrower.whatsapp, msg);
+              window.open(waLink, '_blank');
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-danger text-white hover:bg-danger/95 font-bold rounded-xl text-xs transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4 shrink-0" />
+            Enviar Cobrança Consolidada WhatsApp ({selectedOverdueIds.length})
+          </button>
+        </div>
+      )}
 
       {/* Loans */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <FileText className="w-4 h-4 text-neon" />
-            Empréstimos ({borrower.loans.length})
+            Contratos ({borrower.loans.length})
           </h3>
           <button
             onClick={() => {
@@ -142,29 +232,40 @@ export function BorrowerDetailView() {
         {borrower.loans.length === 0 ? (
           <div className="text-center py-8 space-y-2">
             <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto" />
-            <p className="text-sm text-muted-foreground">Nenhum empréstimo</p>
+            <p className="text-sm text-muted-foreground">Nenhum contrato ativo</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {borrower.loans.map((loan) => {
+            {borrower.loans.map((loan, index) => {
               const paidCount = loan.installments.filter((i) => i.status === 'PAID').length;
               const paidAmount = loan.installments.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
               const progress = loan.totalAmount > 0 ? (paidAmount / loan.totalAmount) * 100 : 0;
+              const remaining = loan.totalAmount - paidAmount;
+              const contractHasOverdue = loan.installments.some((i) => i.status === 'OVERDUE');
+              
               return (
                 <div
                   key={loan.id}
-                  className="bg-surface rounded-xl p-4 border border-border card-hover"
+                  className={`bg-surface rounded-2xl p-4 border card-hover cursor-pointer ${
+                    contractHasOverdue ? 'border-danger/30' : 'border-border'
+                  }`}
                   onClick={() => selectLoan(loan.id)}
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-2">
                     <div>
-                      <p className="text-sm font-semibold text-foreground">{formatCurrency(loan.totalAmount)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {loan.installmentCount} parcelas · {formatCurrency(loan.originalAmount)} original
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Contrato #{borrower.loans.length - index}</p>
+                        {contractHasOverdue && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
+                            <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                            Atrasado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(loan.totalAmount)}</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
                         loan.status === 'ACTIVE' ? 'bg-neon-dim text-neon border-neon/20' : 'bg-secondary text-muted-foreground border-border'
                       }`}>
                         {loan.status === 'ACTIVE' ? 'Ativo' : 'Finalizado'}
@@ -172,13 +273,34 @@ export function BorrowerDetailView() {
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     </div>
                   </div>
-                  <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-neon rounded-full transition-all duration-500"
-                      style={{ width: `${progress}%` }}
-                    />
+
+                  <div className="grid grid-cols-3 gap-1 py-2 my-2 border-y border-border/50 text-[10px]">
+                    <div>
+                      <span className="text-muted-foreground block mb-0.5">Original</span>
+                      <span className="font-semibold text-foreground">{formatCurrency(loan.originalAmount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-0.5">Pago</span>
+                      <span className="font-semibold text-neon">{formatCurrency(paidAmount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-0.5">Restante</span>
+                      <span className="font-semibold text-warning">{formatCurrency(remaining)}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1.5">{paidCount}/{loan.installments.length} parcelas pagas</p>
+
+                  <div className="space-y-1 mt-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>Progresso</span>
+                      <span>{paidCount}/{loan.installmentCount} parcelas quitadas</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-neon rounded-full transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               );
             })}

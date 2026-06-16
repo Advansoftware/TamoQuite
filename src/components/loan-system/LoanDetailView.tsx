@@ -25,6 +25,7 @@ import {
   CreditCard,
   ArrowLeftRight,
   Undo2,
+  ArrowLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -55,7 +56,7 @@ interface LoanDetail {
 }
 
 export function LoanDetailView() {
-  const { selectedLoanId, triggerRefresh } = useAppStore();
+  const { selectedLoanId, triggerRefresh, setView, selectedBorrowerId } = useAppStore();
   const [loan, setLoan] = useState<LoanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [payOpen, setPayOpen] = useState(false);
@@ -219,6 +220,23 @@ export function LoanDetailView() {
 
   return (
     <div className="space-y-4 pb-6">
+      {/* Botão de Voltar */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            if (selectedBorrowerId) {
+              setView('borrower-detail');
+            } else {
+              setView('loans');
+            }
+          }}
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 text-neon" />
+          Voltar
+        </button>
+      </div>
+
       {/* Borrower Info */}
       <div className="bg-surface rounded-2xl p-4 border border-border">
         <div className="flex items-center gap-3 mb-4">
