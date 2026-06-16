@@ -18,20 +18,30 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get('origin') || 'http://localhost:3000';
 
     let customerId = user.stripeCustomerId;
-    if (!customerId) {
+
+    async function getOrCreateCustomer() {
+      if (customerId) {
+        try {
+          await stripe.customers.retrieve(customerId);
+          return customerId;
+        } catch {
+          customerId = null;
+        }
+      }
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.name,
-        metadata: {
-          userId: user.id,
-        },
+        metadata: { userId: user.id },
       });
       customerId = customer.id;
       await db.systemUser.update({
         where: { id: user.id },
         data: { stripeCustomerId: customerId },
       });
+      return customerId;
     }
+
+    customerId = await getOrCreateCustomer();
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
