@@ -1,7 +1,7 @@
 {
-  "name": "CashFlow - Gestão de Repasses",
-  "short_name": "CashFlow",
-  "description": "Sistema de gestão de repasses de empréstimos. Controle financeiro pessoal premium.",
+  "name": "TamoQuite - Gestão de Repasses",
+  "short_name": "TamoQuite",
+  "description": "Sistema de gestão de repasses de empréstimos e cobranças descomplicadas. Controle financeiro pessoal premium.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080C12",

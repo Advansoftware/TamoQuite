@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CashFlow — Gestão de Repasses",
-  description: "Sistema de gestão de repasses de empréstimos. Controle financeiro pessoal premium.",
+  title: "TamoQuite — Gestão de Repasses",
+  description: "Sistema de gestão de repasses de empréstimos e cobranças descomplicadas. Controle financeiro pessoal premium.",
   manifest: "/manifest.json",
   icons: {
     icon: [

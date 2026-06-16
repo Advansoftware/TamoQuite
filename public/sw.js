@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cashflow-v2';
+const CACHE_NAME = 'tamoquite-v2';
 const STATIC_ASSETS = [
   '/manifest.json',
 ];

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const SECRET = process.env.SESSION_SECRET || 'cashflow-super-secret-key-12345';
+const SECRET = process.env.SESSION_SECRET || 'tamoquite-super-secret-key-12345';
 
 export function createSession(userId: string): string {
   const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;

@@ -1,6 +1,6 @@
-# 💰 CashFlow — Gestão de Repasses
+# 🤝 TamoQuite — Gestão de Repasses & Cobranças
 
-Sistema de gestão de repasses e controle de empréstimos. Interface premium com tema escuro, otimizada para desktop e mobile (PWA).
+Sistema de gestão de repasses, cobranças simplificadas e controle de empréstimos. Interface premium com tema escuro, otimizada para desktop e mobile (PWA).
 
 ## 🚀 Tecnologias
 
@@ -22,8 +22,8 @@ Sistema de gestão de repasses e controle de empréstimos. Interface premium com
 
 ```bash
 # Clone o repositório
-git clone git@github.com:Advansoftware/CashFlow.git
-cd CashFlow
+git clone git@github.com:Advansoftware/TamoQuite.git
+cd TamoQuite
 
 # Instale as dependências
 yarn install

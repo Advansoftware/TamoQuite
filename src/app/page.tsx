@@ -10,6 +10,7 @@ import { LoanDetailView } from '@/components/loan-system/LoanDetailView';
 import { BorrowerDetailView } from '@/components/loan-system/BorrowerDetailView';
 import { AdminView, AdminUserDashboardView } from '@/components/loan-system/AdminView';
 import { LoginPage } from '@/components/loan-system/LoginPage';
+import { LandingPage } from '@/components/loan-system/LandingPage';
 import { ChangePasswordPage } from '@/components/loan-system/ChangePasswordPage';
 import { ServiceWorkerRegister } from '@/components/loan-system/ServiceWorkerRegister';
 import { useAppStore } from '@/lib/store';
@@ -36,6 +37,7 @@ function ErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
 export default function Home() {
   const { currentView, user, isLoading, isAuthenticated, setUser } = useAppStore();
   const [error, setError] = useState<Error | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
   const initialCheckDone = useRef(false);
 
   useEffect(() => {
@@ -78,9 +80,12 @@ export default function Home() {
     );
   }
 
-  // Show login
+  // Show landing page or login page
   if (!isAuthenticated || !user) {
-    return <LoginPage />;
+    if (showLogin) {
+      return <LoginPage onBackToLanding={() => setShowLogin(false)} />;
+    }
+    return <LandingPage onEnterApp={() => setShowLogin(true)} />;
   }
 
   // Force password change on first login
@@ -116,7 +121,7 @@ export default function Home() {
               <div className="w-8 h-8 rounded-lg bg-neon flex items-center justify-center shadow-[0_0_12px_rgba(0,255,163,0.3)]">
                 <Zap className="w-4 h-4 text-background" />
               </div>
-              <span className="text-base font-bold text-foreground tracking-tight">CashFlow</span>
+              <span className="text-base font-bold text-foreground tracking-tight">TamoQuite</span>
             </div>
           </div>
           <span className="text-xs text-muted-foreground truncate max-w-[140px]">

@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { Zap, Eye, EyeOff, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function LoginPage() {
+export function LoginPage({ onBackToLanding }: { onBackToLanding?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +53,18 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background relative">
+      {onBackToLanding && (
+        <button
+          onClick={onBackToLanding}
+          className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Voltar ao início
+        </button>
+      )}
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
         <div className="text-center space-y-4">
@@ -61,8 +72,8 @@ export function LoginPage() {
             <Zap className="w-8 h-8 text-background" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">CashFlow</h1>
-            <p className="text-sm text-muted-foreground mt-1">Gestão de Repasses</p>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">TamoQuite</h1>
+            <p className="text-sm text-muted-foreground mt-1">Cobranças & Repasses Inteligentes</p>
           </div>
         </div>
 
