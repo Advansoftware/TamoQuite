@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPut, apiPost, apiDelete, getApiError } from '@/lib/api';
 import {
   formatCurrency,
   formatDate,
-  formatDateShort,
   getDaysUntil,
   getDaysLabel,
   getStatusLabel,
@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   DollarSign,
   Percent,
-  Calendar,
   AlertTriangle,
   CreditCard,
   ArrowLeftRight,
@@ -64,66 +63,131 @@ interface LoanDetail {
   installments: Installment[];
 }
 
+async function fetchLoanData(selectedLoanId: string): Promise<{ loan: LoanDetail; partialPayments: Record<string, PartialPayment[]> }> {
+  const res = await apiFetch(`/api/loans/${selectedLoanId}`);
+  if (!res.ok) throw new Error('Failed to fetch loan');
+  const loan: LoanDetail = await res.json();
+
+  const paymentsMap: Record<string, PartialPayment[]> = {};
+  await Promise.all(
+    loan.installments.map(async (inst) => {
+      if (inst.status === 'PARTIAL' || inst.status === 'PAID') {
+        try {
+          const paymentsRes = await apiFetch(`/api/installments/${inst.id}/partial-payments`);
+          if (paymentsRes.ok) {
+            const payments = await paymentsRes.json();
+            if (payments.length > 0) paymentsMap[inst.id] = payments;
+          }
+        } catch { /* ignore */ }
+      }
+    })
+  );
+
+  return { loan, partialPayments: paymentsMap };
+}
+
 export function LoanDetailView() {
-  const { selectedLoanId, triggerRefresh, setView, selectedBorrowerId, refreshKey } = useAppStore();
-  const [loan, setLoan] = useState<LoanDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { selectedLoanId, setView, selectedBorrowerId } = useAppStore();
+  const queryClient = useQueryClient();
+
   const [payOpen, setPayOpen] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
   const [partialAmount, setPartialAmount] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
   const [interestOpen, setInterestOpen] = useState(false);
   const [interestAmount, setInterestAmount] = useState('');
   const [rollImmediately, setRollImmediately] = useState(true);
   const [rollRemainingOpen, setRollRemainingOpen] = useState(false);
   const [undoRollOpen, setUndoRollOpen] = useState(false);
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
-  const [partialPayments, setPartialPayments] = useState<Record<string, PartialPayment[]>>({});
   const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
 
-  const fetchLoan = useCallback(async () => {
-    if (!selectedLoanId) return;
-    setLoading(true);
-    try {
-      const res = await apiFetch(`/api/loans/${selectedLoanId}`);
-      const json = await res.json();
-      setLoan(json);
+  const { data, isLoading } = useQuery({
+    queryKey: ['loan', selectedLoanId],
+    queryFn: () => fetchLoanData(selectedLoanId!),
+    enabled: !!selectedLoanId,
+  });
 
-      // Fetch partial payments for all installments
-      const paymentsMap: Record<string, PartialPayment[]> = {};
-      for (const inst of json.installments) {
-        if (inst.status === 'PARTIAL' || inst.status === 'PAID') {
-          try {
-            const paymentsRes = await apiFetch(`/api/installments/${inst.id}/partial-payments`);
-            if (paymentsRes.ok) {
-              const payments = await paymentsRes.json();
-              if (payments.length > 0) {
-                paymentsMap[inst.id] = payments;
-              }
-            }
-          } catch (err) {
-            console.error(err);
-          }
-        }
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['loan', selectedLoanId] });
+    queryClient.invalidateQueries({ queryKey: ['loans'] });
+  };
+
+  const payFullMutation = useMutation({
+    mutationFn: async (inst: Installment) => {
+      const res = await apiPut(`/api/installments/${inst.id}`, { status: 'PAID' });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+    },
+    onSuccess: () => { setPayOpen(false); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const payPartialMutation = useMutation({
+    mutationFn: async ({ installmentId, amount }: { installmentId: string; amount: number }) => {
+      const res = await apiPost(`/api/installments/${installmentId}/partial-payments`, { amount });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+    },
+    onSuccess: () => { setPartialOpen(false); setPartialAmount(''); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const payInterestMutation = useMutation({
+    mutationFn: async ({ installmentId, interestAmount, rollImmediately }: { installmentId: string; interestAmount: number; rollImmediately: boolean }) => {
+      const res = await apiPost(`/api/installments/${installmentId}/pay-interest`, { interestAmount, rollImmediately });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+    },
+    onSuccess: (_, vars) => {
+      toast.success(vars.rollImmediately ? 'Juros pagos e parcela adiada!' : 'Pagamento de juros registrado!');
+      setInterestOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rollRemainingMutation = useMutation({
+    mutationFn: async (installmentId: string) => {
+      const res = await apiPost(`/api/installments/${installmentId}/roll-remaining`, {});
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+    },
+    onSuccess: () => { toast.success('Parcela adiada para o próximo mês!'); setRollRemainingOpen(false); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const undoPaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedInstallment) return;
+      if (undoPartialPaymentId) {
+        const res = await apiDelete(`/api/installments/${selectedInstallment.id}/partial-payments/${undoPartialPaymentId}`);
+        const errMsg = await getApiError(res);
+        if (errMsg) throw new Error(errMsg);
+      } else {
+        const hasRolled = data?.loan.installments.some(
+          (x) => x.installmentNumber === selectedInstallment.installmentNumber + 1
+        );
+        const endpoint = hasRolled
+          ? `/api/installments/${selectedInstallment.id}/undo-roll`
+          : `/api/installments/${selectedInstallment.id}/undo-payment`;
+        const res = await apiPost(endpoint, {});
+        const errMsg = await getApiError(res);
+        if (errMsg) throw new Error(errMsg);
       }
-      setPartialPayments(paymentsMap);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedLoanId]);
+    },
+    onSuccess: () => {
+      toast.success('Pagamento desfeito com sucesso!');
+      setUndoRollOpen(false);
+      setUndoPartialPaymentId(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchLoan();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchLoan, refreshKey]);
+  const anySubmitting = payFullMutation.isPending || payPartialMutation.isPending || payInterestMutation.isPending || rollRemainingMutation.isPending || undoPaymentMutation.isPending;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
@@ -131,6 +195,8 @@ export function LoanDetailView() {
     );
   }
 
+  const loan = data?.loan;
+  const partialPayments = data?.partialPayments || {};
   if (!loan) return null;
 
   const paidCount = loan.installments.filter((i) => i.status === 'PAID').length;
@@ -138,129 +204,6 @@ export function LoanDetailView() {
   const totalAmount = loan.installments.reduce((sum, i) => sum + i.amount, 0);
   const remainingAmount = loan.installments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
   const progressPercent = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
-
-  const handlePayFull = async (inst: Installment) => {
-    setSubmitting(true);
-    try {
-      const res = await apiPut(`/api/installments/${inst.id}`, { status: 'PAID' });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
-      setPayOpen(false);
-      triggerRefresh();
-      fetchLoan();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handlePayPartial = async () => {
-    if (!selectedInstallment || !partialAmount) return;
-    setSubmitting(true);
-    try {
-      const amount = parseFloat(partialAmount);
-      const res = await apiPost(`/api/installments/${selectedInstallment.id}/partial-payments`, { amount });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
-      setPartialOpen(false);
-      setPartialAmount('');
-      triggerRefresh();
-      fetchLoan();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handlePayInterest = async () => {
-    if (!selectedInstallment || !interestAmount) return;
-    setSubmitting(true);
-    try {
-      const amount = parseFloat(interestAmount);
-      const res = await apiPost(`/api/installments/${selectedInstallment.id}/pay-interest`, {
-        interestAmount: amount,
-        rollImmediately,
-      });
-
-      const errMsg = await getApiError(res);
-      if (errMsg) {
-        toast.error(errMsg);
-        return;
-      }
-
-      toast.success(rollImmediately ? 'Juros pagos e parcela adiada!' : 'Pagamento de juros registrado!');
-      setInterestOpen(false);
-      triggerRefresh();
-      fetchLoan();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleRollRemaining = async () => {
-    if (!selectedInstallment) return;
-    setSubmitting(true);
-    try {
-      const res = await apiPost(`/api/installments/${selectedInstallment.id}/roll-remaining`, {});
-      const errMsg = await getApiError(res);
-      if (errMsg) {
-        toast.error(errMsg);
-        return;
-      }
-
-      toast.success('Parcela adiada para o próximo mês!');
-      setRollRemainingOpen(false);
-      triggerRefresh();
-      fetchLoan();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUndoPayment = async () => {
-    if (!selectedInstallment) return;
-    setSubmitting(true);
-    try {
-      if (undoPartialPaymentId) {
-        const res = await apiDelete(`/api/installments/${selectedInstallment.id}/partial-payments/${undoPartialPaymentId}`);
-        const errMsg = await getApiError(res);
-        if (errMsg) {
-          toast.error(errMsg);
-          return;
-        }
-        toast.success('Pagamento removido!');
-      } else {
-        const hasRolled = loan?.installments.some(
-          (x) => x.installmentNumber === selectedInstallment.installmentNumber + 1
-        );
-        const endpoint = hasRolled
-          ? `/api/installments/${selectedInstallment.id}/undo-roll`
-          : `/api/installments/${selectedInstallment.id}/undo-payment`;
-
-        const res = await apiPost(endpoint, {});
-        const errMsg = await getApiError(res);
-        if (errMsg) {
-          toast.error(errMsg);
-          return;
-        }
-        toast.success('Pagamento desfeito com sucesso!');
-      }
-      setUndoRollOpen(false);
-      setUndoPartialPaymentId(null);
-      triggerRefresh();
-      fetchLoan();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="space-y-4 pb-6">
@@ -352,7 +295,7 @@ export function LoanDetailView() {
             return (
               <div
                 key={inst.id}
-                className={`bg-surface rounded-xl p-4 border ${
+                className={`bg-surface rounded-xl p-4 border transition-all duration-300 ${
                   inst.status === 'OVERDUE' ? 'border-danger/20' : 'border-border'
                 } card-hover`}
               >
@@ -564,11 +507,11 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={() => selectedInstallment && handlePayFull(selectedInstallment)}
-              disabled={submitting}
+              onClick={() => selectedInstallment && payFullMutation.mutate(selectedInstallment)}
+              disabled={anySubmitting}
               className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1"
             >
-              {submitting ? 'Confirmando...' : 'Confirmar Pagamento'}
+              {payFullMutation.isPending ? 'Confirmando...' : 'Confirmar Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -614,11 +557,14 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={handlePayPartial}
-              disabled={submitting || !partialAmount || parseFloat(partialAmount) <= 0}
+              onClick={() => {
+                if (!selectedInstallment || !partialAmount) return;
+                payPartialMutation.mutate({ installmentId: selectedInstallment.id, amount: parseFloat(partialAmount) });
+              }}
+              disabled={anySubmitting || !partialAmount || parseFloat(partialAmount) <= 0}
               className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1"
             >
-              {submitting ? 'Registrando...' : 'Registrar Pagamento'}
+              {payPartialMutation.isPending ? 'Registrando...' : 'Registrar Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -701,11 +647,18 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={handlePayInterest}
-              disabled={submitting || !interestAmount || parseFloat(interestAmount) <= 0}
+              onClick={() => {
+                if (!selectedInstallment || !interestAmount) return;
+                payInterestMutation.mutate({
+                  installmentId: selectedInstallment.id,
+                  interestAmount: parseFloat(interestAmount),
+                  rollImmediately,
+                });
+              }}
+              disabled={anySubmitting || !interestAmount || parseFloat(interestAmount) <= 0}
               className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
             >
-              {submitting ? 'Confirmando...' : 'Confirmar Pagamento'}
+              {payInterestMutation.isPending ? 'Confirmando...' : 'Confirmar Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -742,11 +695,11 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={handleRollRemaining}
-              disabled={submitting}
+              onClick={() => selectedInstallment && rollRemainingMutation.mutate(selectedInstallment.id)}
+              disabled={anySubmitting}
               className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
             >
-              {submitting ? 'Processando...' : 'Confirmar Rolagem'}
+              {rollRemainingMutation.isPending ? 'Processando...' : 'Confirmar Rolagem'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -784,11 +737,11 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={handleUndoPayment}
-              disabled={submitting}
+              onClick={() => undoPaymentMutation.mutate()}
+              disabled={anySubmitting}
               className="bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 font-semibold rounded-xl flex-1 cursor-pointer"
             >
-              {submitting ? 'Processando...' : 'Desfazer Pagamento'}
+              {undoPaymentMutation.isPending ? 'Processando...' : 'Desfazer Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
