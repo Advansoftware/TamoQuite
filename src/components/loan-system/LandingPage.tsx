@@ -137,14 +137,29 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       }
 
       const loginData = await loginRes.json();
-      
-      // Store user in zustand store
-      setTimeout(() => {
-        setUser(loginData.user, loginData.token);
-        setCheckoutStep('PAYMENT_METHOD');
+
+      // Temporarily store token for checkout without triggering full auth state
+      useAppStore.getState().setUser(loginData.user, loginData.token);
+      setCheckoutStep('PROCESSING');
+
+      const token = loginData.token;
+      const checkoutRes = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!checkoutRes.ok) {
+        const errData = await checkoutRes.json();
+        toast.error(errData.error || 'Erro ao iniciar checkout');
         setLoading(false);
-        toast.success('Conta criada com sucesso! Prossiga para o pagamento.');
-      }, 1000);
+        return;
+      }
+
+      const { url } = await checkoutRes.json();
+      window.location.href = url;
 
     } catch (err) {
       console.error(err);
@@ -661,6 +676,19 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                   <p className="text-[10px] text-muted-foreground/60">
                     Você será redirecionado para a plataforma segura do Stripe para concluir a transação.
                   </p>
+                </div>
+              )}
+
+              {/* PROCESSING: Redirecting to Stripe */}
+              {checkoutStep === 'PROCESSING' && (
+                <div className="py-8 text-center space-y-6 animate-in fade-in duration-300">
+                  <div className="w-16 h-16 rounded-full bg-neon/15 border border-neon/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(0,255,163,0.2)]">
+                    <Loader2 className="w-8 h-8 text-neon animate-spin" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-foreground">Conta criada!</h3>
+                    <p className="text-xs text-muted-foreground max-w-xs mx-auto">Redirecionando para o pagamento seguro...</p>
+                  </div>
                 </div>
               )}
 

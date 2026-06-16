@@ -132,21 +132,32 @@ export default function Home() {
   useEffect(() => {
     // Check if redirecting back from Stripe checkout success
     const params = new URLSearchParams(window.location.search);
-    if (params.get('session_id')) {
-      (async () => {
+    const sessionId = params.get('session_id');
+    if (sessionId) {
+      let attempts = 0;
+      const maxAttempts = 10;
+      const poll = async () => {
+        attempts++;
         try {
           const res = await apiFetch('/api/auth/me');
           if (res.ok) {
             const data = await res.json();
-            setUser(data);
-            toast.success('Assinatura ativada com sucesso! Bem-vindo.');
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
+            if (data.subscriptionStatus === 'active' || attempts >= maxAttempts) {
+              setUser(data);
+              toast.success('Assinatura ativada com sucesso! Bem-vindo.');
+              const cleanUrl = window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+              return;
+            }
           }
         } catch (err) {
           console.error(err);
         }
-      })();
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1500);
+        }
+      };
+      poll();
     }
   }, []);
 

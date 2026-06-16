@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       customer: customerId,
       line_items: [
         {
-          price: 'price_1Tj0aPAqYZYoBfLTLJUtbPkT',
+          price: 'price_1Tj2ZQCsywhPRDWax02I6aMH',
           quantity: 1,
         },
       ],

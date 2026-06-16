@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        subscriptionStatus: user.subscriptionStatus,
       },
     });
 
