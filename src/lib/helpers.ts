@@ -1,0 +1,97 @@
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+}
+
+export function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+export function formatDateShort(dateStr: string): string {
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
+export function getDaysUntil(dateStr: string): number {
+  const now = new Date();
+  const target = new Date(dateStr);
+  now.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function getStatusColor(status: string): string {
+  switch (status) {
+    case 'PAID':
+      return 'text-neon';
+    case 'PARTIAL':
+      return 'text-warning';
+    case 'OVERDUE':
+      return 'text-danger';
+    default:
+      return 'text-muted-foreground';
+  }
+}
+
+export function getStatusBgColor(status: string): string {
+  switch (status) {
+    case 'PAID':
+      return 'bg-neon-dim text-neon border-neon/20';
+    case 'PARTIAL':
+      return 'bg-warning/10 text-warning border-warning/20';
+    case 'OVERDUE':
+      return 'bg-danger/10 text-danger border-danger/20';
+    default:
+      return 'bg-secondary text-muted-foreground border-border';
+  }
+}
+
+export function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'PAID':
+      return 'Pago';
+    case 'PARTIAL':
+      return 'Parcial';
+    case 'OVERDUE':
+      return 'Atrasado';
+    default:
+      return 'Pendente';
+  }
+}
+
+export function getDaysLabel(days: number): string {
+  if (days === 0) return 'Vence hoje';
+  if (days === 1) return 'Vence amanhã';
+  if (days > 1) return `Faltam ${days} dias`;
+  if (days === -1) return 'Venceu ontem';
+  return `Venceu há ${Math.abs(days)} dias`;
+}
+
+export function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
+}
+
+export function generateWhatsAppLink(phone: string, message: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const encoded = encodeURIComponent(message);
+  return `https://wa.me/55${digits}?text=${encoded}`;
+}
+
+export function generateChargeMessage(name: string, amount: number, dueDate: string): string {
+  const formattedDate = formatDate(dueDate);
+  return `Opa ${name}! 💰 Passando pra lembrar da parcela de ${formatCurrency(amount)} que vence dia ${formattedDate}. Tamo junto! 🤝`;
+}
