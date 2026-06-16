@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Percent, ArrowLeftRight } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Percent, ArrowLeftRight, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 type CalcMode = 'BY_RATE' | 'BY_TOTAL';
@@ -52,6 +54,7 @@ export function CreateLoanDialog({
 }: CreateLoanDialogProps) {
   const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
   const [loadingBorrowers, setLoadingBorrowers] = useState(false);
+  const [borrowerOpen, setBorrowerOpen] = useState(false);
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
   const [submitting, setSubmitting] = useState(false);
 
@@ -198,22 +201,49 @@ export function CreateLoanDialog({
           {!fixedBorrowerId && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Pessoa *</label>
-              <Select 
-                value={form.borrowerId} 
-                onValueChange={(v) => setForm({ ...form, borrowerId: v })}
-                disabled={loadingBorrowers}
-              >
-                <SelectTrigger className="bg-surface-elevated border-border text-foreground rounded-xl h-11">
-                  <SelectValue placeholder={loadingBorrowers ? "Carregando..." : "Selecione uma pessoa"} />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-elevated border-border">
-                  {borrowers.map((b) => (
-                    <SelectItem key={b.id} value={b.id} className="text-foreground">
-                      {b.name} — {formatPhone(b.whatsapp)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={borrowerOpen} onOpenChange={setBorrowerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    role="combobox"
+                    aria-expanded={borrowerOpen}
+                    aria-controls="borrower-list"
+                    disabled={loadingBorrowers}
+                    className="bg-surface-elevated border-border text-foreground rounded-xl h-11 w-full flex items-center justify-between px-3 text-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {form.borrowerId
+                      ? borrowers.find((b) => b.id === form.borrowerId)?.name
+                      : loadingBorrowers ? 'Carregando...' : 'Selecione uma pessoa'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-surface-elevated border-border" align="start">
+                  <Command className="bg-surface-elevated">
+                    <CommandInput placeholder="Buscar por nome ou telefone..." className="h-9" />
+                    <CommandList id="borrower-list">
+                      <CommandEmpty className="text-muted-foreground py-4 text-sm">Nenhum resultado encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {borrowers.map((b) => (
+                          <CommandItem
+                            key={b.id}
+                            value={`${b.name} ${b.whatsapp}`}
+                            onSelect={() => {
+                              setForm({ ...form, borrowerId: b.id });
+                              setBorrowerOpen(false);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${form.borrowerId === b.id ? 'opacity-100' : 'opacity-0'}`}
+                            />
+                            {b.name} — {formatPhone(b.whatsapp)}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 
@@ -294,42 +324,46 @@ export function CreateLoanDialog({
             </>
           )}
 
-          {calcMode === 'BY_RATE' || !form.installmentValue ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Número de Parcelas *</label>
-              <Select 
-                value={form.installmentCount} 
-                onValueChange={(v) => setForm({ ...form, installmentCount: v })}
-              >
-                <SelectTrigger className="bg-surface-elevated border-border text-foreground rounded-xl h-11">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-elevated border-border">
-                  {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24, 36].map((num) => (
-                    <SelectItem key={num} value={String(num)} className="text-foreground">
-                      {num} parcelas
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-2">
+              {calcMode === 'BY_RATE' || !form.installmentValue ? (
+                <>
+                  <label className="text-sm font-medium">Número de Parcelas *</label>
+                  <Select 
+                    value={form.installmentCount} 
+                    onValueChange={(v) => setForm({ ...form, installmentCount: v })}
+                  >
+                    <SelectTrigger className="w-full bg-surface-elevated border-border text-foreground rounded-xl data-[size=default]:h-11 h-11">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-surface-elevated border-border">
+                      {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24, 36].map((num) => (
+                        <SelectItem key={num} value={String(num)} className="text-foreground">
+                          {num} parcelas
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <label className="text-sm font-medium">Parcelas (auto)</label>
+                  <div className="h-11 px-4 bg-surface-elevated/50 border border-border rounded-xl flex items-center text-sm text-muted-foreground">
+                    {calculatedInstallmentCount > 0 ? `${calculatedInstallmentCount} parcelas` : '—'}
+                  </div>
+                </>
+              )}
             </div>
-          ) : (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Parcelas (auto)</label>
-              <div className="h-11 px-4 bg-surface-elevated/50 border border-border rounded-xl flex items-center text-sm text-muted-foreground">
-                {calculatedInstallmentCount > 0 ? `${calculatedInstallmentCount} parcelas` : '—'}
-              </div>
-            </div>
-          )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Data de Início *</label>
-            <Input 
-              type="date" 
-              value={form.startDate} 
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })} 
-              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" 
-            />
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-medium">Data de Início *</label>
+              <Input 
+                type="date" 
+                value={form.startDate} 
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })} 
+                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" 
+              />
+            </div>
           </div>
 
           {/* Preview */}
