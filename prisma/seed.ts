@@ -6,8 +6,10 @@ async function seed() {
 
   const hash = await bcrypt.hash('admin123', 12);
 
-  const bruno = await db.systemUser.create({
-    data: {
+  const bruno = await db.systemUser.upsert({
+    where: { email: 'brunoantunes94@hotmail.com' },
+    update: {},
+    create: {
       email: 'brunoantunes94@hotmail.com',
       name: 'Bruno Antunes',
       passwordHash: hash,
