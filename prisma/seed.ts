@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 async function seed() {
   console.log('🌱 Seeding database...');
 
-  const hash = await bcrypt.hash('CashFlow@2025!', 12);
+  const hash = await bcrypt.hash('admin123', 12);
 
   const bruno = await db.systemUser.create({
     data: {
@@ -18,7 +18,7 @@ async function seed() {
   });
 
   console.log(`✅ Admin user created: ${bruno.email}`);
-  console.log('🔑 Default password: CashFlow@2025! (must change on first login)');
+  console.log('🔑 Default password: admin123 (must change on first login)');
   console.log('🌱 Seed complete!');
 }
 

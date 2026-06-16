@@ -53,3 +53,30 @@ Exclusions (by design):
 - useAppStore imports left untouched in all files
 
 Lint: PASSED (bun run lint — zero errors)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Reset database, change seed password to "admin123", verify app works end-to-end
+
+Work Log:
+- Updated prisma/seed.ts: changed default password from 'CashFlow@2025!' to 'admin123'
+- Deleted existing database file (db/custom.db)
+- Ran `bunx prisma db push --force-reset` to recreate schema
+- Ran `bun run prisma/seed.ts` to seed brunoantunes94@hotmail.com with admin123
+- Verified login API: POST /api/auth/login returns token + user with mustChangePassword:true
+- Verified dashboard API: GET /api/dashboard returns empty data (expected, no loans yet)
+- Agent Browser verification:
+  - Login page renders correctly with email/password fields
+  - Login with admin123 succeeds → redirects to Change Password page
+  - Change password works (current: admin123, new: NovaSenha123, confirm: NovaSenha123)
+  - Dashboard renders after password change with all 4 summary cards
+  - All navigation tabs work: Painel, Pessoas, Empréstimos, Admin, Perfil
+  - No console errors in browser
+  - Lint passes with zero errors
+
+Stage Summary:
+- Database reset and re-seeded with password "admin123"
+- Full login → change password → dashboard flow verified working
+- Blank page issue from previous session resolved (was caused by DB/session state, not code bug)
+- All views render correctly: Dashboard, Borrowers, Loans, Admin
