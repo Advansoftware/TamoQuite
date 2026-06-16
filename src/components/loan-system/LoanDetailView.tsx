@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPut, apiPost, getApiError } from '@/lib/api';
+import { apiFetch, apiPut, apiPost, apiDelete, getApiError } from '@/lib/api';
 import {
   formatCurrency,
   formatDate,
@@ -26,7 +26,9 @@ import {
   ArrowLeftRight,
   Undo2,
   ArrowLeft,
+  ChevronDown,
 } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -40,6 +42,13 @@ interface Installment {
   status: string;
   paidAmount: number;
   paidAt: string | null;
+}
+
+interface PartialPayment {
+  id: string;
+  amount: number;
+  note: string | null;
+  createdAt: string;
 }
 
 interface LoanDetail {
@@ -56,7 +65,7 @@ interface LoanDetail {
 }
 
 export function LoanDetailView() {
-  const { selectedLoanId, triggerRefresh, setView, selectedBorrowerId } = useAppStore();
+  const { selectedLoanId, triggerRefresh, setView, selectedBorrowerId, refreshKey } = useAppStore();
   const [loan, setLoan] = useState<LoanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [payOpen, setPayOpen] = useState(false);
@@ -70,6 +79,9 @@ export function LoanDetailView() {
   const [rollImmediately, setRollImmediately] = useState(true);
   const [rollRemainingOpen, setRollRemainingOpen] = useState(false);
   const [undoRollOpen, setUndoRollOpen] = useState(false);
+  const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
+  const [partialPayments, setPartialPayments] = useState<Record<string, PartialPayment[]>>({});
+  const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
 
   const fetchLoan = useCallback(async () => {
     if (!selectedLoanId) return;
@@ -78,6 +90,25 @@ export function LoanDetailView() {
       const res = await apiFetch(`/api/loans/${selectedLoanId}`);
       const json = await res.json();
       setLoan(json);
+
+      // Fetch partial payments for all installments
+      const paymentsMap: Record<string, PartialPayment[]> = {};
+      for (const inst of json.installments) {
+        if (inst.status === 'PARTIAL' || inst.status === 'PAID') {
+          try {
+            const paymentsRes = await apiFetch(`/api/installments/${inst.id}/partial-payments`);
+            if (paymentsRes.ok) {
+              const payments = await paymentsRes.json();
+              if (payments.length > 0) {
+                paymentsMap[inst.id] = payments;
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      }
+      setPartialPayments(paymentsMap);
     } catch (err) {
       console.error(err);
     } finally {
@@ -90,7 +121,7 @@ export function LoanDetailView() {
       fetchLoan();
     }, 0);
     return () => clearTimeout(timer);
-  }, [fetchLoan]);
+  }, [fetchLoan, refreshKey]);
 
   if (loading) {
     return (
@@ -129,12 +160,7 @@ export function LoanDetailView() {
     setSubmitting(true);
     try {
       const amount = parseFloat(partialAmount);
-      let res: Response;
-      if (amount >= selectedInstallment.amount) {
-        res = await apiPut(`/api/installments/${selectedInstallment.id}`, { status: 'PAID', paidAmount: selectedInstallment.amount });
-      } else {
-        res = await apiPut(`/api/installments/${selectedInstallment.id}`, { status: 'PARTIAL', paidAmount: amount });
-      }
+      const res = await apiPost(`/api/installments/${selectedInstallment.id}/partial-payments`, { amount });
       const errMsg = await getApiError(res);
       if (errMsg) { toast.error(errMsg); return; }
       setPartialOpen(false);
@@ -197,19 +223,36 @@ export function LoanDetailView() {
     }
   };
 
-  const handleUndoRoll = async () => {
+  const handleUndoPayment = async () => {
     if (!selectedInstallment) return;
     setSubmitting(true);
     try {
-      const res = await apiPost(`/api/installments/${selectedInstallment.id}/undo-roll`, {});
-      const errMsg = await getApiError(res);
-      if (errMsg) {
-        toast.error(errMsg);
-        return;
-      }
+      if (undoPartialPaymentId) {
+        const res = await apiDelete(`/api/installments/${selectedInstallment.id}/partial-payments/${undoPartialPaymentId}`);
+        const errMsg = await getApiError(res);
+        if (errMsg) {
+          toast.error(errMsg);
+          return;
+        }
+        toast.success('Pagamento removido!');
+      } else {
+        const hasRolled = loan?.installments.some(
+          (x) => x.installmentNumber === selectedInstallment.installmentNumber + 1
+        );
+        const endpoint = hasRolled
+          ? `/api/installments/${selectedInstallment.id}/undo-roll`
+          : `/api/installments/${selectedInstallment.id}/undo-payment`;
 
-      toast.success('Rolagem desfeita com sucesso!');
+        const res = await apiPost(endpoint, {});
+        const errMsg = await getApiError(res);
+        if (errMsg) {
+          toast.error(errMsg);
+          return;
+        }
+        toast.success('Pagamento desfeito com sucesso!');
+      }
       setUndoRollOpen(false);
+      setUndoPartialPaymentId(null);
       triggerRefresh();
       fetchLoan();
     } catch {
@@ -346,16 +389,63 @@ export function LoanDetailView() {
                   </span>
                 </div>
 
-                {/* Partial payment info */}
-                {inst.status === 'PARTIAL' && (
-                  <div className="mb-3 bg-warning/5 rounded-lg p-2.5 border border-warning/10">
-                    <p className="text-xs text-warning">
-                      Pago: {formatCurrency(inst.paidAmount || 0)} · Restante: {formatCurrency(remaining)}
-                    </p>
-                  </div>
+                {/* Partial payment collapse */}
+                {(inst.status === 'PARTIAL' || (inst.status === 'PAID' && partialPayments[inst.id]?.length > 0)) && (
+                  <Collapsible
+                    open={expandedInstallments.has(inst.id)}
+                    onOpenChange={() => {
+                      setExpandedInstallments((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(inst.id)) next.delete(inst.id);
+                        else next.add(inst.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    <div className="mb-3 bg-warning/5 rounded-lg border border-warning/10 overflow-hidden">
+                      <CollapsibleTrigger className="w-full flex items-center justify-between p-2.5 cursor-pointer hover:bg-warning/10 transition-colors">
+                        <p className="text-xs text-warning font-medium">
+                          Pago: {formatCurrency(inst.paidAmount || 0)} · Restante: {formatCurrency(remaining)}
+                        </p>
+                        <ChevronDown className={`w-4 h-4 text-warning shrink-0 transition-transform duration-200 ${expandedInstallments.has(inst.id) ? 'rotate-180' : ''}`} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-2.5 pb-2.5 space-y-1.5">
+                          {partialPayments[inst.id]?.length > 0 ? (
+                            partialPayments[inst.id].map((payment) => (
+                              <div key={payment.id} className="flex items-center justify-between py-1.5 px-2 bg-surface-elevated rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-foreground font-medium">{formatCurrency(payment.amount)}</p>
+                                  <p className="text-[10px] text-muted-foreground">{formatDate(payment.createdAt)}</p>
+                                  {payment.note && (
+                                    <p className="text-[10px] text-muted-foreground italic truncate">{payment.note}</p>
+                                  )}
+                                </div>
+                                {inst.status === 'PARTIAL' && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedInstallment(inst);
+                                      setUndoPartialPaymentId(payment.id);
+                                      setUndoRollOpen(true);
+                                    }}
+                                    className="ml-2 text-danger hover:text-danger/80 cursor-pointer"
+                                    title="Remover pagamento"
+                                  >
+                                    <Undo2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">Nenhum pagamento registrado.</p>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
                 )}
 
-                {/* Actions */}
+                {/* Actions for non-PAID */}
                 {inst.status !== 'PAID' && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -425,18 +515,16 @@ export function LoanDetailView() {
                       <CheckCircle2 className="w-3.5 h-3.5 text-neon" />
                       {inst.paidAt ? `Pago em ${formatDate(inst.paidAt)}` : 'Pago'}
                     </div>
-                    {loan.installments.some((x) => x.installmentNumber === inst.installmentNumber + 1) && (
-                      <button
-                        onClick={() => {
-                          setSelectedInstallment(inst);
-                          setUndoRollOpen(true);
-                        }}
-                        className="text-xs text-danger hover:underline cursor-pointer flex items-center gap-1"
-                      >
-                        <Undo2 className="w-3 h-3" />
-                        Desfazer Pagamento
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedInstallment(inst);
+                        setUndoRollOpen(true);
+                      }}
+                      className="text-xs text-danger hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      Desfazer Pagamento
+                    </button>
                   </div>
                 )}
               </div>
@@ -451,9 +539,20 @@ export function LoanDetailView() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Confirmar Pagamento</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Confirme o pagamento completo da parcela{' '}
-              <strong className="text-foreground">#{selectedInstallment?.installmentNumber}</strong> no valor de{' '}
-              <strong className="text-neon">{selectedInstallment ? formatCurrency(selectedInstallment.amount) : ''}</strong>
+              {selectedInstallment && (selectedInstallment.paidAmount || 0) > 0 ? (
+                <>
+                  Confirme o pagamento restante da parcela{' '}
+                  <strong className="text-foreground">#{selectedInstallment.installmentNumber}</strong> no valor de{' '}
+                  <strong className="text-neon">{formatCurrency(selectedInstallment.amount - (selectedInstallment.paidAmount || 0))}</strong>
+                  <span className="text-muted-foreground"> (já pago: {formatCurrency(selectedInstallment.paidAmount || 0)})</span>
+                </>
+              ) : (
+                <>
+                  Confirme o pagamento completo da parcela{' '}
+                  <strong className="text-foreground">#{selectedInstallment?.installmentNumber}</strong> no valor de{' '}
+                  <strong className="text-neon">{selectedInstallment ? formatCurrency(selectedInstallment.amount) : ''}</strong>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -654,18 +753,25 @@ export function LoanDetailView() {
       </Dialog>
 
       {/* Undo Roll Dialog */}
-      <Dialog open={undoRollOpen} onOpenChange={setUndoRollOpen}>
+      <Dialog open={undoRollOpen} onOpenChange={(open) => {
+        setUndoRollOpen(open);
+        if (!open) setUndoPartialPaymentId(null);
+      }}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Desfazer Pagamento de Juros</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Desfazer Pagamento</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Tem certeza que deseja desfazer este pagamento de juros e reverter a alteração de vencimento?
+              {undoPartialPaymentId
+                ? 'Tem certeza que deseja remover este pagamento parcial?'
+                : 'Tem certeza que deseja desfazer este pagamento?'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Esta ação removerá o registro desta parcela de juros e trará a parcela original e todas as subsequentes de volta para o mês atual, definindo o valor pago como pagamento parcial.
+              {undoPartialPaymentId
+                ? 'Este pagamento parcial será removido e o valor será descontado do total pago desta parcela.'
+                : 'Esta ação irá reverter o pagamento realizado. Se esta parcela foi adiada, as parcelas subsequentes também serão restauradas.'}
             </p>
           </div>
 
@@ -678,7 +784,7 @@ export function LoanDetailView() {
               Cancelar
             </Button>
             <Button
-              onClick={handleUndoRoll}
+              onClick={handleUndoPayment}
               disabled={submitting}
               className="bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 font-semibold rounded-xl flex-1 cursor-pointer"
             >

@@ -68,4 +68,14 @@ model Installment {
   paidAt            DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  partialPayments   PartialPayment[]
+}
+
+model PartialPayment {
+  id            String    @id @default(cuid())
+  installmentId String
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amount        Float
+  note          String?
+  createdAt     DateTime  @default(now())
 }

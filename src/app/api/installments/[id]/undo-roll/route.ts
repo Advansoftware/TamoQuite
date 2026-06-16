@@ -31,7 +31,8 @@ export async function POST(
       return NextResponse.json({ error: 'Parcela original correspondente não encontrada' }, { status: 400 });
     }
 
-    // 1. Restaurar a data e o status da próxima parcela para o mês anterior (como PARTIAL)
+    // 1. Restaurar a data e o installmentNumber da próxima parcela para o mês anterior
+    //    NÃO sobrescrever status/paidAmount/paidAt — manter o estado original da parcela
     const prevDueDate = new Date(nextInstallment.dueDate);
     prevDueDate.setMonth(prevDueDate.getMonth() - 1);
 
@@ -40,9 +41,6 @@ export async function POST(
       data: {
         dueDate: prevDueDate,
         installmentNumber: interestInstallment.installmentNumber,
-        status: 'PARTIAL',
-        paidAmount: interestInstallment.paidAmount,
-        paidAt: interestInstallment.paidAt,
       },
     });
 
