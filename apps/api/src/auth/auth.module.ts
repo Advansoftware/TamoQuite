@@ -13,7 +13,10 @@ import { JwtStrategy } from './jwt.strategy';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'tamoquite-super-secret-key-12345',
+        secret:
+          config.get<string>('JWT_SECRET') ||
+          config.get<string>('SESSION_SECRET') ||
+          'tamoquite-super-secret-key-12345',
         signOptions: { expiresIn: '30d' },
       }),
     }),

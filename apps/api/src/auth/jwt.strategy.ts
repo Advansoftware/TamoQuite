@@ -22,7 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') || 'tamoquite-super-secret-key-12345',
+      secretOrKey:
+        config.get<string>('JWT_SECRET') ||
+        config.get<string>('SESSION_SECRET') ||
+        'tamoquite-super-secret-key-12345',
     });
   }
 
