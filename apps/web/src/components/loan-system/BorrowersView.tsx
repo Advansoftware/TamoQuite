@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 
 interface Borrower {
@@ -259,11 +260,9 @@ export function BorrowersView() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">WhatsApp *</label>
-              <Input
-                placeholder="Ex: 11999999999"
+              <PhoneInput
                 value={form.whatsapp}
-                onChange={(e) => setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '') })}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                onChange={(whatsapp) => setForm({ ...form, whatsapp })}
               />
             </div>
             <div className="space-y-2">
@@ -313,10 +312,9 @@ export function BorrowersView() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">WhatsApp *</label>
-              <Input
+              <PhoneInput
                 value={form.whatsapp}
-                onChange={(e) => setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '') })}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                onChange={(whatsapp) => setForm({ ...form, whatsapp })}
               />
             </div>
             <div className="space-y-2">

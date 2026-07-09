@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -511,11 +512,9 @@ export function CreateLoanDialog({
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">WhatsApp *</label>
-            <Input
+            <PhoneInput
               value={newPerson.whatsapp}
-              onChange={(e) => setNewPerson({ ...newPerson, whatsapp: e.target.value })}
-              placeholder="(11) 91234-5678"
-              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+              onChange={(whatsapp) => setNewPerson({ ...newPerson, whatsapp })}
             />
           </div>
         </div>

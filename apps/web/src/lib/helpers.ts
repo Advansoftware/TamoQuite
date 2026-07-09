@@ -1,3 +1,5 @@
+import { formatPhoneDisplay, toE164Digits } from './phone';
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -78,17 +80,15 @@ export function getDaysLabel(days: number): string {
 }
 
 export function formatPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 11) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  }
-  return phone;
+  return formatPhoneDisplay(phone);
 }
 
 export function generateWhatsAppLink(phone: string, message: string): string {
-  const digits = phone.replace(/\D/g, '');
+  // Stored value already includes the country dial code (legacy BR numbers
+  // without a code are normalized to +55 by toE164Digits).
+  const digits = toE164Digits(phone);
   const encoded = encodeURIComponent(message);
-  return `https://wa.me/55${digits}?text=${encoded}`;
+  return `https://wa.me/${digits}?text=${encoded}`;
 }
 
 export function generateChargeMessage(name: string, amount: number, dueDate: string): string {
