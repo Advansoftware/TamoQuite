@@ -1,13 +1,16 @@
 {
-  "name": "TamoQuite - Gestão de Repasses",
+  "id": "/",
+  "name": "TamoQuite — Gestão de Repasses e Cobranças",
   "short_name": "TamoQuite",
-  "description": "Sistema de gestão de repasses de empréstimos e cobranças descomplicadas. Controle financeiro pessoal premium.",
+  "description": "Controle empréstimos, repasses e parcelas e automatize cobranças no WhatsApp. Lembretes automáticos no vencimento e finanças pessoais descomplicadas.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080C12",
   "theme_color": "#00FFA3",
   "orientation": "portrait",
   "scope": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -22,5 +25,5 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["finance", "productivity"]
+  "categories": ["finance", "productivity", "business"]
 }

@@ -29,11 +29,18 @@ services:
       PORT: 3042
       TZ: ${TZ:-America/Sao_Paulo}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      WEB_URL: ${WEB_URL:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-price_1Tj2ZQCsywhPRDWax02I6aMH}
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-TamoQuite <no-reply@tamoquite.com>}
     # Sem publicar porta no host (evita conflito no VPS). O proxy do Coolify roteia
     # o domínio da API para esta porta interna. Atribua o domínio ao serviço `api` no Coolify.
     expose:
@@ -48,6 +55,8 @@ services:
     environment:
       # URL pública da API (usada pelo navegador). Injetada em runtime — não precisa rebuild.
       API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3042}
+      # Domínio público do app para SEO (canonical/sitemap/robots/Open Graph). Runtime.
+      SITE_URL: ${SITE_URL:-}
       PORT: 3000
       TZ: ${TZ:-America/Sao_Paulo}
     # Sem publicar porta no host. O proxy do Coolify roteia o domínio do app para esta

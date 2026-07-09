@@ -29,6 +29,19 @@ model SystemUser {
 
   whatsappInstance     WhatsappInstance?
   billingSettings      BillingSettings?
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String     @id @default(cuid())
+  userId    String
+  user      SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String     @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
 }
 
 model Borrower {

@@ -13,8 +13,11 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import * as bcrypt from 'bcryptjs';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { buildPasswordResetEmail } from '../mail/templates';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { SUPER_ADMIN_EMAIL } from '../common/constants';
@@ -24,7 +27,17 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
   ) {}
+
+  private webBaseUrl(): string {
+    const raw =
+      this.config.get<string>('WEB_URL') ||
+      (this.config.get<string>('WEB_ORIGIN') || '').split(',')[0].trim() ||
+      'http://localhost:3000';
+    return raw.replace(/\/$/, '');
+  }
 
   @Post('login')
   async login(
@@ -143,6 +156,48 @@ export class AuthController {
     });
 
     return newUser;
+  }
+
+  // Public: request a password reset email. Always returns success to avoid
+  // leaking whether an email is registered.
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: { email?: string }) {
+    const email = body?.email?.trim();
+    if (!email) {
+      throw new BadRequestException('Informe o email');
+    }
+
+    const result = await this.auth.createPasswordResetToken(email);
+    if (result) {
+      const link = `${this.webBaseUrl()}/redefinir-senha?token=${result.token}`;
+      const { subject, html, text } = buildPasswordResetEmail(result.user.name, link);
+      try {
+        await this.mail.send(result.user.email, subject, html, text);
+      } catch {
+        // Swallow send errors so the response stays uniform; the failure is logged in MailService.
+      }
+    }
+
+    return { success: true };
+  }
+
+  // Public: complete a password reset using the emailed token.
+  @Post('reset-password')
+  async resetPassword(@Body() body: { token?: string; newPassword?: string }) {
+    const { token, newPassword } = body;
+    if (!token || !newPassword) {
+      throw new BadRequestException('Token e nova senha são obrigatórios');
+    }
+    if (newPassword.length < 6) {
+      throw new BadRequestException('A nova senha deve ter no mínimo 6 caracteres');
+    }
+
+    const ok = await this.auth.resetPasswordWithToken(token, newPassword);
+    if (!ok) {
+      throw new BadRequestException('Link inválido ou expirado. Solicite um novo.');
+    }
+
+    return { success: true };
   }
 
   // Admin-only user creation
