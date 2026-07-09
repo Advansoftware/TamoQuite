@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import { apiUrl } from '@/lib/config';
 import { Zap, Eye, EyeOff, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,7 +21,7 @@ export function LoginPage({ onBackToLanding }: { onBackToLanding?: () => void })
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),

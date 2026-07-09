@@ -1,8 +1,13 @@
-// Standalone API helper - no store dependency, reads token from Zustand directly
+// Standalone API helper - reads token from Zustand (or localStorage) and targets the NestJS API base URL.
 import { useAppStore } from '@/lib/store';
+import { apiUrl, getStoredToken } from '@/lib/config';
+
+function currentToken(): string | null {
+  return useAppStore.getState().token || getStoredToken();
+}
 
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = useAppStore.getState().token;
+  const token = currentToken();
   const headers = new Headers(options.headers || {});
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -10,7 +15,7 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
   if (options.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(url, { ...options, headers, credentials: 'include' });
+  return fetch(apiUrl(url), { ...options, headers, credentials: 'include' });
 }
 
 export async function apiPost(url: string, body: unknown): Promise<Response> {
@@ -30,6 +35,13 @@ export async function apiDelete(url: string, body?: unknown): Promise<Response> 
 export async function apiPut(url: string, body: unknown): Promise<Response> {
   return apiFetch(url, {
     method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function apiPatch(url: string, body: unknown): Promise<Response> {
+  return apiFetch(url, {
+    method: 'PATCH',
     body: JSON.stringify(body),
   });
 }
@@ -56,7 +68,7 @@ export async function getApiError(res: Response): Promise<string | null> {
   if (res.status === 400 || res.status === 422) {
     try {
       const data = await res.json();
-      return data.error || 'Dados inválidos. Verifique os campos.';
+      return data.error || data.message || 'Dados inválidos. Verifique os campos.';
     } catch {
       return 'Dados inválidos. Verifique os campos.';
     }
@@ -64,7 +76,7 @@ export async function getApiError(res: Response): Promise<string | null> {
 
   try {
     const data = await res.json();
-    return data.error || 'Erro no servidor. Tente novamente.';
+    return data.error || data.message || 'Erro no servidor. Tente novamente.';
   } catch {
     return 'Erro no servidor. Tente novamente.';
   }

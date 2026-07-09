@@ -1,0 +1,55 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tamoquite}
+      MYSQL_USER: ${MYSQL_USER:-tamoquite}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tamoquite}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tamoquite_root}
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-tamoquite_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-tamoquite}:${MYSQL_PASSWORD:-tamoquite}@db:3306/${MYSQL_DATABASE:-tamoquite}
+      JWT_SECRET: ${JWT_SECRET:-troque-por-um-segredo-forte}
+      PORT: 3042
+      TZ: ${TZ:-America/Sao_Paulo}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-price_1Tj2ZQCsywhPRDWax02I6aMH}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+    ports:
+      - "${API_PORT:-3042}:3042"
+
+  web:
+    build:
+      context: ./apps/web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # URL pública da API (usada pelo navegador). Injetada em runtime — não precisa rebuild.
+      API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3042}
+      PORT: 3000
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  db_data:

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, getApiError } from '@/lib/api';
 import { formatPhone, formatCurrency, formatDate, generateWhatsAppLink } from '@/lib/helpers';
@@ -37,7 +38,10 @@ interface BorrowerDetail {
 }
 
 export function BorrowerDetailView() {
-  const { selectedBorrowerId, selectLoan, setView, refreshKey } = useAppStore();
+  const params = useParams();
+  const router = useRouter();
+  const selectedBorrowerId = params.id as string;
+  const { refreshKey } = useAppStore();
   const [borrower, setBorrower] = useState<BorrowerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
@@ -258,7 +262,7 @@ export function BorrowerDetailView() {
                   className={`bg-surface rounded-2xl p-4 border card-hover cursor-pointer ${
                     contractHasOverdue ? 'border-danger/30' : 'border-border'
                   }`}
-                  onClick={() => selectLoan(loan.id)}
+                  onClick={() => router.push(`/loans/${loan.id}`)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div>

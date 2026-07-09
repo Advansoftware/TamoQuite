@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, apiDelete, getApiError } from '@/lib/api';
 import { formatDate } from '@/lib/helpers';
@@ -24,7 +25,8 @@ interface ManagedUser {
 }
 
 export function AdminView() {
-  const { user, selectAdminUser } = useAppStore();
+  const router = useRouter();
+  const { user } = useAppStore();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -132,7 +134,7 @@ export function AdminView() {
                   {u.email !== 'brunoantunes94@hotmail.com' && (
                     <>
                       <button
-                        onClick={() => selectAdminUser(u.id)}
+                        onClick={() => router.push(`/admin/users/${u.id}`)}
                         className="w-8 h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
                         title="Ver dashboard"
                       >
@@ -202,7 +204,8 @@ export function AdminView() {
 }
 
 export function AdminUserDashboardView() {
-  const { adminSelectedUserId } = useAppStore();
+  const params = useParams();
+  const adminSelectedUserId = params.id as string;
   const [userInfo, setUserInfo] = useState<ManagedUser | null>(null);
   const [loading, setLoading] = useState(true);
 

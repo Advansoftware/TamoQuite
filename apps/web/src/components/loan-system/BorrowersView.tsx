@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, apiPut, apiDelete, getApiError } from '@/lib/api';
 import { formatPhone, formatCurrency, formatDate } from '@/lib/helpers';
@@ -35,7 +36,8 @@ export function BorrowersView() {
   const [selected, setSelected] = useState<Borrower | null>(null);
   const [form, setForm] = useState({ name: '', whatsapp: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
-  const { selectBorrower, refreshKey, triggerRefresh } = useAppStore();
+  const router = useRouter();
+  const { refreshKey, triggerRefresh } = useAppStore();
 
   const fetchBorrowers = useCallback(async () => {
     try {
@@ -186,7 +188,7 @@ export function BorrowersView() {
                       {b.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => selectBorrower(b.id)}>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => router.push(`/borrowers/${b.id}`)}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-sm font-semibold text-foreground truncate">{b.name}</p>
                       {hasOverdue && (
@@ -225,7 +227,7 @@ export function BorrowersView() {
                     <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-danger" />
                   </button>
                   <button
-                    onClick={() => selectBorrower(b.id)}
+                    onClick={() => router.push(`/borrowers/${b.id}`)}
                     className="w-8 h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
                   >
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />

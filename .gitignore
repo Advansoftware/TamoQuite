@@ -8,21 +8,15 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
-# Next.js
-/.next/
-/out/
-/build/
-
-# Production
-/build
+# Next.js / build output (qualquer app do monorepo)
+.next/
+out/
+build/
+dist/
 
 # Environment variables
 .env
 .env*.local
-
-# Database (SQLite)
-db/*.db
-db/*.db-journal
 
 # Upload/Download data
 /upload/
@@ -66,7 +60,6 @@ test/
 prompt/
 /skills/
 worklog.md
-.zscripts/dev.pid
 bun.lock
 
 # Screenshots (gerados por ferramentas)

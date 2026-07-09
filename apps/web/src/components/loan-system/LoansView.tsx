@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, apiDelete, getApiError } from '@/lib/api';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBgColor, formatPhone } from '@/lib/helpers';
@@ -44,7 +45,8 @@ export function LoansView() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<Loan | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { selectLoan, refreshKey, triggerRefresh, loansFilter, setLoansFilter } = useAppStore();
+  const router = useRouter();
+  const { refreshKey, triggerRefresh, loansFilter, setLoansFilter } = useAppStore();
 
   const fetchData = useCallback(async () => {
     try {
@@ -159,7 +161,7 @@ export function LoansView() {
           {filtered.map((loan) => {
             const progress = getLoanProgress(loan);
             return (
-              <div key={loan.id} className="bg-surface rounded-2xl p-4 border border-border card-hover" onClick={() => selectLoan(loan.id)}>
+              <div key={loan.id} className="bg-surface rounded-2xl p-4 border border-border card-hover" onClick={() => router.push(`/loans/${loan.id}`)}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-neon-dim flex items-center justify-center shrink-0">
@@ -172,7 +174,7 @@ export function LoansView() {
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => openDelete(loan)} className="w-8 h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></button>
-                    <button onClick={() => selectLoan(loan.id)} className="w-8 h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>
+                    <button onClick={() => router.push(`/loans/${loan.id}`)} className="w-8 h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>
                   </div>
                 </div>
                 <div className="flex items-end justify-between mb-3">

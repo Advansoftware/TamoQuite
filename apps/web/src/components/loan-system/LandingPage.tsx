@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { apiUrl } from '@/lib/config';
 import { 
   Zap, 
   Check, 
@@ -64,7 +65,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
     try {
       const state = useAppStore.getState();
       const token = state.token;
-      const res = await fetch('/api/stripe/checkout', {
+      const res = await fetch(apiUrl('/api/stripe/checkout'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
     setLoading(true);
     try {
       // 1. Create account
-      const signupRes = await fetch('/api/auth/signup', {
+      const signupRes = await fetch(apiUrl('/api/auth/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +125,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       // If email already exists, skip login and proceed directly
       if (signupData.exists) {
         // Try to login with provided credentials
-        const loginRes = await fetch('/api/auth/login', {
+        const loginRes = await fetch(apiUrl('/api/auth/login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -152,7 +153,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         // Subscription not active - go to payment
         setCheckoutStep('PROCESSING');
         const token = loginData.token;
-        const checkoutRes = await fetch('/api/stripe/checkout', {
+        const checkoutRes = await fetch(apiUrl('/api/stripe/checkout'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -172,7 +173,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       }
 
       // 2. Perform automatic login for new accounts
-      const loginRes = await fetch('/api/auth/login', {
+      const loginRes = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,7 +196,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       setCheckoutStep('PROCESSING');
 
       const token = loginData.token;
-      const checkoutRes = await fetch('/api/stripe/checkout', {
+      const checkoutRes = await fetch(apiUrl('/api/stripe/checkout'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,30 +1,34 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model SystemUser {
-  id               String       @id @default(cuid())
-  email            String       @unique
-  name             String
-  passwordHash     String
-  role             String       @default("CLIENT")
-  mustChangePassword Boolean     @default(true)
-  isActive         Boolean      @default(true)
+  id                   String       @id @default(cuid())
+  email                String       @unique
+  name                 String
+  passwordHash         String
+  role                 String       @default("CLIENT")
+  mustChangePassword   Boolean      @default(true)
+  isActive             Boolean      @default(true)
   stripeCustomerId     String?
-  stripeSubscriptionId  String?
+  stripeSubscriptionId String?
   subscriptionStatus   String?      @default("INACTIVE")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  borrowers        Borrower[]
-  loans            Loan[]
-  createdBy        String?
-  createdByUser    SystemUser?  @relation("UserHierarchy", fields: [createdBy], references: [id])
-  createdUsers     SystemUser[] @relation("UserHierarchy")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  borrowers            Borrower[]
+  loans                Loan[]
+  createdBy            String?
+  createdByUser        SystemUser?  @relation("UserHierarchy", fields: [createdBy], references: [id])
+  createdUsers         SystemUser[] @relation("UserHierarchy")
+
+  whatsappInstance     WhatsappInstance?
+  billingSettings      BillingSettings?
 }
 
 model Borrower {
@@ -33,10 +37,12 @@ model Borrower {
   user      SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   whatsapp  String
-  notes     String?
+  notes     String?    @db.Text
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   loans     Loan[]
+
+  @@index([userId])
 }
 
 model Loan {
@@ -54,6 +60,18 @@ model Loan {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   installments     Installment[]
+
+  // Billing / cobrança
+  doNotCharge         Boolean  @default(false)
+  billingOverride     Boolean  @default(false)
+  remindBeforeEnabled Boolean?
+  daysBefore          Int?
+  sendOnDueDate       Boolean?
+  overdueEnabled      Boolean?
+  overdueIntervalDays Int?
+
+  @@index([userId])
+  @@index([borrowerId])
 }
 
 model Installment {
@@ -67,16 +85,67 @@ model Installment {
   paidAmount        Float     @default(0)
   paidAt            DateTime?
   type              String    @default("ORIGINAL")
+  doNotCharge       Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   partialPayments   PartialPayment[]
+  chargeLogs        ChargeLog[]
+
+  @@index([loanId])
+  @@index([dueDate])
 }
 
 model PartialPayment {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   installmentId String
   installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
   amount        Float
-  note          String?
-  createdAt     DateTime  @default(now())
+  note          String?     @db.Text
+  createdAt     DateTime    @default(now())
+
+  @@index([installmentId])
+}
+
+model WhatsappInstance {
+  id              String     @id @default(cuid())
+  userId          String     @unique
+  user            SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceName    String     @unique
+  status          String     @default("DISCONNECTED") // DISCONNECTED | CONNECTING | CONNECTED
+  connectedNumber String?
+  lastConnectedAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model BillingSettings {
+  id                  String     @id @default(cuid())
+  userId              String     @unique
+  user                SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  remindBeforeEnabled Boolean    @default(true)
+  daysBefore          Int        @default(3)
+  sendOnDueDate       Boolean    @default(true)
+  overdueEnabled      Boolean    @default(true)
+  overdueIntervalDays Int        @default(3)
+  maxOverdueMessages  Int        @default(0) // 0 = ilimitado
+  sendHour            Int        @default(9) // hora local (America/Sao_Paulo) de envio
+  reminderTemplate    String     @db.Text
+  dueTemplate         String     @db.Text
+  overdueTemplate     String     @db.Text
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+model ChargeLog {
+  id                 String      @id @default(cuid())
+  installmentId      String
+  installment        Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  type               String // REMINDER | DUE | OVERDUE
+  status             String // SENT | FAILED
+  message            String      @db.Text
+  evolutionMessageId String?
+  error              String?     @db.Text
+  sentAt             DateTime    @default(now())
+
+  @@index([installmentId, type, sentAt])
 }

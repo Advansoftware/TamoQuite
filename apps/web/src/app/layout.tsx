@@ -3,6 +3,18 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { AuthProvider } from "@/components/AuthProvider";
+
+// Render per-request so the API base URL below is read from the server env at runtime
+// (a statically prerendered layout would bake in the build-time value). The app is fully
+// client-driven, so there is no static-generation benefit lost here.
+export const dynamic = "force-dynamic";
+
+// Runtime API base URL (read from the server env at request time, injected for the browser).
+// Lets Coolify change the API URL without rebuilding the frontend image.
+function runtimeApiUrl() {
+  return process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
+}
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,12 +54,19 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__API_URL__=${JSON.stringify(runtimeApiUrl())};`,
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <Providers>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </Providers>
         <Toaster
           position="top-center"

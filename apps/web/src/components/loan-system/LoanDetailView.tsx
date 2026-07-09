@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppStore } from '@/lib/store';
+import { useParams, useRouter } from 'next/navigation';
+import { LoanBillingCard } from './LoanBillingCard';
 import { apiFetch, apiPut, apiPost, apiDelete, getApiError } from '@/lib/api';
 import {
   formatCurrency,
@@ -60,6 +61,7 @@ interface LoanDetail {
   startDate: string;
   status: string;
   createdAt: string;
+  doNotCharge?: boolean;
   borrower: { id: string; name: string; whatsapp: string };
   installments: Installment[];
 }
@@ -88,7 +90,9 @@ async function fetchLoanData(selectedLoanId: string): Promise<{ loan: LoanDetail
 }
 
 export function LoanDetailView() {
-  const { selectedLoanId, setView, selectedBorrowerId } = useAppStore();
+  const params = useParams();
+  const router = useRouter();
+  const selectedLoanId = params.id as string;
   const queryClient = useQueryClient();
 
   const [payOpen, setPayOpen] = useState(false);
@@ -209,19 +213,15 @@ export function LoanDetailView() {
       {/* Botão de Voltar */}
       <div className="flex items-center gap-2">
         <button
-          onClick={() => {
-            if (selectedBorrowerId) {
-              setView('borrower-detail');
-            } else {
-              setView('loans');
-            }
-          }}
+          onClick={() => router.back()}
           className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-neon" />
           Voltar
         </button>
       </div>
+
+      <LoanBillingCard loanId={loan.id} initialDoNotCharge={!!loan.doNotCharge} />
 
       {/* Borrower Info */}
       <div className="bg-surface rounded-2xl p-4 border border-border">

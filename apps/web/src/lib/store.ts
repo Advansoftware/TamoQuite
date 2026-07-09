@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-
-export type View = 'dashboard' | 'borrowers' | 'loans' | 'loan-detail' | 'borrower-detail' | 'admin' | 'admin-user-dashboard';
+import { apiUrl, getStoredToken, setStoredToken } from '@/lib/config';
 
 interface AuthUser {
   id: string;
@@ -18,37 +17,29 @@ interface AppState {
   isAuthenticated: boolean;
   isLoading: boolean;
   setUser: (user: AuthUser | null, token?: string | null) => void;
+  hydrateToken: () => void;
   logout: () => void;
 
-  // Navigation
-  currentView: View;
-  selectedLoanId: string | null;
-  selectedBorrowerId: string | null;
-  adminSelectedUserId: string | null;
+  // UI (non-route) state
   refreshKey: number;
   loansFilter: string;
   setLoansFilter: (filter: string) => void;
-  setView: (view: View) => void;
-  selectLoan: (id: string) => void;
-  selectBorrower: (id: string) => void;
-  selectAdminUser: (id: string) => void;
-  goBack: () => void;
   triggerRefresh: () => void;
 }
 
 // Helper: get auth headers for fetch calls
 export function authHeaders(): Record<string, string> {
-  const state = useAppStore.getState();
+  const token = useAppStore.getState().token || getStoredToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (state.token) {
-    headers['Authorization'] = `Bearer ${state.token}`;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }
 
-// Helper: authenticated fetch
+// Helper: authenticated fetch against the API base URL
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = useAppStore.getState().token;
+  const token = useAppStore.getState().token || getStoredToken();
   const headers = new Headers(options.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -56,7 +47,7 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(url, { ...options, headers });
+  return fetch(apiUrl(url), { ...options, headers, credentials: 'include' });
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -64,30 +55,30 @@ export const useAppStore = create<AppState>((set) => ({
   token: null,
   isAuthenticated: false,
   isLoading: true,
-  setUser: (user, token = null) => set({
-    user,
-    token: user ? (token || useAppStore.getState().token) : null,
-    isAuthenticated: !!user,
-    isLoading: false,
-  }),
+  setUser: (user, token = null) => {
+    const resolvedToken = user ? token || useAppStore.getState().token || getStoredToken() : null;
+    setStoredToken(resolvedToken);
+    set({
+      user,
+      token: resolvedToken,
+      isAuthenticated: !!user,
+      isLoading: false,
+    });
+  },
+  hydrateToken: () => {
+    const token = getStoredToken();
+    if (token) set({ token });
+  },
   logout: () => {
+    setStoredToken(null);
     if (typeof window !== 'undefined') {
       document.cookie = 'cf_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
     }
-    set({ user: null, token: null, isAuthenticated: false, currentView: 'dashboard' });
+    set({ user: null, token: null, isAuthenticated: false });
   },
 
-  currentView: 'dashboard',
-  selectedLoanId: null,
-  selectedBorrowerId: null,
-  adminSelectedUserId: null,
   refreshKey: 0,
   loansFilter: 'ALL',
   setLoansFilter: (filter) => set({ loansFilter: filter }),
-  setView: (view) => set({ currentView: view, selectedLoanId: null, selectedBorrowerId: null, adminSelectedUserId: null }),
-  selectLoan: (id) => set({ currentView: 'loan-detail', selectedLoanId: id }),
-  selectBorrower: (id) => set({ currentView: 'borrower-detail', selectedBorrowerId: id }),
-  selectAdminUser: (id) => set({ currentView: 'admin-user-dashboard', adminSelectedUserId: id }),
-  goBack: () => set({ currentView: 'dashboard', selectedLoanId: null, selectedBorrowerId: null, adminSelectedUserId: null }),
   triggerRefresh: () => set((state) => ({ refreshKey: state.refreshKey + 1 })),
 }));

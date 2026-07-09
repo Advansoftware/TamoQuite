@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 
 interface DashboardData {
@@ -51,7 +52,8 @@ import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, MessageCircle, Do
 export function DashboardView() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { selectLoan, selectBorrower, refreshKey, setLoansFilter, setView } = useAppStore();
+  const router = useRouter();
+  const { refreshKey, setLoansFilter } = useAppStore();
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -106,7 +108,7 @@ export function DashboardView() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div onClick={() => { setLoansFilter('ACTIVE'); setView('loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => { setLoansFilter('ACTIVE'); router.push('/loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-neon-dim flex items-center justify-center">
               <Wallet className="w-4 h-4 text-neon" />
@@ -116,7 +118,7 @@ export function DashboardView() {
           <p className="text-lg font-bold text-foreground">{formatCurrency(data.totalMonthlyPending)}</p>
         </div>
 
-        <div onClick={() => { setLoansFilter('ALL'); setView('loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => { setLoansFilter('ALL'); router.push('/loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-neon-dim flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-neon" />
@@ -126,7 +128,7 @@ export function DashboardView() {
           <p className="text-lg font-bold text-neon">{formatCurrency(data.receivedMonthly)}</p>
         </div>
 
-        <div onClick={() => { setLoansFilter('OVERDUE'); setView('loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => { setLoansFilter('OVERDUE'); router.push('/loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-danger/10 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4 text-danger" />
@@ -136,7 +138,7 @@ export function DashboardView() {
           <p className="text-lg font-bold text-danger">{data.overdueCount}</p>
         </div>
 
-        <div onClick={() => { setLoansFilter('ACTIVE'); setView('loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => { setLoansFilter('ACTIVE'); router.push('/loans'); }} className="bg-surface rounded-2xl p-4 border border-border card-hover cursor-pointer active:scale-[0.98] transition-all">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-surface-elevated flex items-center justify-center">
               <DollarSign className="w-4 h-4 text-foreground" />
@@ -234,7 +236,7 @@ export function DashboardView() {
                     <div
                       key={inst.id}
                       className="bg-surface rounded-xl p-4 border border-border card-hover cursor-pointer"
-                      onClick={() => selectLoan(inst.loanId)}
+                      onClick={() => router.push(`/loans/${inst.loanId}`)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1 min-w-0">
@@ -273,7 +275,7 @@ export function DashboardView() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">Empréstimos Recentes</h3>
                 <button
-                  onClick={() => useAppStore.getState().setView('loans')}
+                  onClick={() => router.push('/loans')}
                   className="flex items-center gap-1 text-xs text-neon hover:underline cursor-pointer"
                 >
                   Ver todos <ArrowRight className="w-3 h-3" />
@@ -284,7 +286,7 @@ export function DashboardView() {
                   <div
                     key={loan.id}
                     className="bg-surface rounded-xl p-4 border border-border card-hover cursor-pointer"
-                    onClick={() => selectLoan(loan.id)}
+                    onClick={() => router.push(`/loans/${loan.id}`)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
