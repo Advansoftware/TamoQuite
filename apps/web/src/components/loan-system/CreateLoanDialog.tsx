@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Percent, ArrowLeftRight, ChevronsUpDown, Check } from 'lucide-react';
+import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 type CalcMode = 'BY_RATE' | 'BY_TOTAL';
@@ -55,6 +55,10 @@ export function CreateLoanDialog({
   const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
   const [loadingBorrowers, setLoadingBorrowers] = useState(false);
   const [borrowerOpen, setBorrowerOpen] = useState(false);
+  const [borrowerSearch, setBorrowerSearch] = useState('');
+  const [personDialogOpen, setPersonDialogOpen] = useState(false);
+  const [newPerson, setNewPerson] = useState({ name: '', whatsapp: '' });
+  const [creatingPerson, setCreatingPerson] = useState(false);
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,6 +88,39 @@ export function CreateLoanDialog({
       setLoadingBorrowers(false);
     }
   }, [fixedBorrowerId]);
+
+  const openCreatePerson = () => {
+    setNewPerson({ name: borrowerSearch.trim(), whatsapp: '' });
+    setBorrowerOpen(false);
+    setPersonDialogOpen(true);
+  };
+
+  const handleCreatePerson = async () => {
+    if (!newPerson.name.trim() || !newPerson.whatsapp.trim()) {
+      toast.error('Nome e WhatsApp são obrigatórios');
+      return;
+    }
+    setCreatingPerson(true);
+    try {
+      const res = await apiPost('/api/borrowers', {
+        name: newPerson.name.trim(),
+        whatsapp: newPerson.whatsapp.trim(),
+      });
+      const errMsg = await getApiError(res);
+      if (errMsg) { toast.error(errMsg); return; }
+      const created = await res.json();
+      setBorrowers((prev) => (prev.some((b) => b.id === created.id) ? prev : [created, ...prev]));
+      setForm((f) => ({ ...f, borrowerId: created.id }));
+      setPersonDialogOpen(false);
+      setNewPerson({ name: '', whatsapp: '' });
+      setBorrowerSearch('');
+      toast.success('Pessoa criada e selecionada!');
+    } catch {
+      toast.error('Erro de conexão com o servidor');
+    } finally {
+      setCreatingPerson(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -194,6 +231,7 @@ export function CreateLoanDialog({
   }, [calcMode, pmtInput, calculatedInstallmentCount]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -225,9 +263,26 @@ export function CreateLoanDialog({
                 </PopoverTrigger>
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-surface-elevated border-border" align="start">
                   <Command className="bg-surface-elevated">
-                    <CommandInput placeholder="Buscar por nome ou telefone..." className="h-9" />
+                    <CommandInput
+                      placeholder="Buscar por nome ou telefone..."
+                      className="h-9"
+                      value={borrowerSearch}
+                      onValueChange={setBorrowerSearch}
+                    />
                     <CommandList id="borrower-list">
-                      <CommandEmpty className="text-muted-foreground py-4 text-sm">Nenhum resultado encontrado.</CommandEmpty>
+                      <CommandEmpty className="py-4 text-sm">
+                        <div className="flex flex-col items-center gap-2 px-3">
+                          <span className="text-muted-foreground">Nenhuma pessoa encontrada.</span>
+                          <button
+                            type="button"
+                            onClick={openCreatePerson}
+                            className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-neon text-background text-xs font-semibold hover:bg-neon/90 transition-colors cursor-pointer"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            {borrowerSearch.trim() ? `Criar "${borrowerSearch.trim()}"` : 'Criar pessoa'}
+                          </button>
+                        </div>
+                      </CommandEmpty>
                       <CommandGroup>
                         {borrowers.map((b) => (
                           <CommandItem
@@ -347,8 +402,8 @@ export function CreateLoanDialog({
             </Select>
           </div>
 
-          <div className="flex gap-4">
-            <div className="flex-1 space-y-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
               {calcMode === 'BY_RATE' || !form.installmentValue ? (
                 <>
                   <label className="text-sm font-medium">Número de Parcelas *</label>
@@ -378,13 +433,13 @@ export function CreateLoanDialog({
               )}
             </div>
 
-            <div className="flex-1 space-y-2">
+            <div className="space-y-2">
               <label className="text-sm font-medium">Data de Início *</label>
-              <Input 
-                type="date" 
-                value={form.startDate} 
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })} 
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" 
+              <Input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
               />
             </div>
           </div>
@@ -434,5 +489,54 @@ export function CreateLoanDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Nested "create person" dialog — shown from the borrower search when no one is found */}
+    <Dialog open={personDialogOpen} onOpenChange={setPersonDialogOpen}>
+      <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold">Nova Pessoa</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Cadastre a pessoa para usar neste empréstimo
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nome *</label>
+            <Input
+              value={newPerson.name}
+              onChange={(e) => setNewPerson({ ...newPerson, name: e.target.value })}
+              placeholder="Nome da pessoa"
+              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">WhatsApp *</label>
+            <Input
+              value={newPerson.whatsapp}
+              onChange={(e) => setNewPerson({ ...newPerson, whatsapp: e.target.value })}
+              placeholder="(11) 91234-5678"
+              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setPersonDialogOpen(false)}
+            className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1 cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreatePerson}
+            disabled={creatingPerson || !newPerson.name.trim() || !newPerson.whatsapp.trim()}
+            className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
+          >
+            {creatingPerson ? 'Criando...' : 'Criar e Selecionar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
