@@ -33,7 +33,7 @@ export function SupportButton() {
       {/* Floating Action Button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-[99] w-12 h-12 rounded-full bg-surface-elevated/85 backdrop-blur-md border border-neon/30 hover:border-neon text-neon flex items-center justify-center shadow-[0_4px_20px_rgba(0,255,163,0.15)] hover:shadow-[0_0_25px_rgba(0,255,163,0.35)] transition-all duration-300 active:scale-95 group cursor-pointer"
+        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 w-12 h-12 rounded-full bg-surface-elevated/85 backdrop-blur-md border border-neon/30 hover:border-neon text-neon flex items-center justify-center shadow-[0_4px_20px_rgba(0,255,163,0.15)] hover:shadow-[0_0_25px_rgba(0,255,163,0.35)] transition-all duration-300 active:scale-95 group cursor-pointer"
         title="Suporte e Feedback"
       >
         <HelpCircle className="w-6 h-6 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
@@ -41,7 +41,7 @@ export function SupportButton() {
 
       {/* Support Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader className="space-y-3">
             <div className="mx-auto w-12 h-12 rounded-2xl bg-neon-dim border border-neon/20 flex items-center justify-center">
               <Mail className="w-6 h-6 text-neon" />

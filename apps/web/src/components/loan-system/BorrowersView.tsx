@@ -242,7 +242,7 @@ export function BorrowersView() {
 
       {/* Create Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Nova Pessoa</DialogTitle>
             <DialogDescription className="text-muted-foreground">Cadastre um devedor para controlar empréstimos</DialogDescription>
@@ -297,7 +297,7 @@ export function BorrowersView() {
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Editar Pessoa</DialogTitle>
             <DialogDescription className="text-muted-foreground">Atualize os dados do devedor</DialogDescription>
@@ -349,7 +349,7 @@ export function BorrowersView() {
 
       {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-danger">Excluir Pessoa</DialogTitle>
             <DialogDescription className="text-muted-foreground">

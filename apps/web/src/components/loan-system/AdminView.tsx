@@ -158,7 +158,7 @@ export function AdminView() {
 
       {/* Create User Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Novo Usuário</DialogTitle>
             <DialogDescription className="text-muted-foreground">Crie um novo usuário para o sistema</DialogDescription>

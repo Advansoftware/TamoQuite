@@ -218,7 +218,7 @@ export function LoansView() {
 
       {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-danger">Excluir Empréstimo</DialogTitle>
             <DialogDescription className="text-muted-foreground">

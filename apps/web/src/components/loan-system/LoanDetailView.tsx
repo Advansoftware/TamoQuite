@@ -487,7 +487,7 @@ export function LoanDetailView() {
 
       {/* Pay Full Dialog */}
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Confirmar Pagamento</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -528,7 +528,7 @@ export function LoanDetailView() {
 
       {/* Partial Payment Dialog */}
       <Dialog open={partialOpen} onOpenChange={setPartialOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Pagamento Parcial</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -581,7 +581,7 @@ export function LoanDetailView() {
 
       {/* Pay Only Interest Dialog */}
       <Dialog open={interestOpen} onOpenChange={setInterestOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Pagar Apenas Juros</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -675,7 +675,7 @@ export function LoanDetailView() {
 
       {/* Roll Remaining Dialog */}
       <Dialog open={rollRemainingOpen} onOpenChange={setRollRemainingOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Rolar Parcela (Adiar Vencimento)</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -719,7 +719,7 @@ export function LoanDetailView() {
         setUndoRollOpen(open);
         if (!open) setUndoPartialPaymentId(null);
       }}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Desfazer Pagamento</DialogTitle>
             <DialogDescription className="text-muted-foreground">

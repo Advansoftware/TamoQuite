@@ -93,7 +93,7 @@ export function BottomNav() {
 
       {/* Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-sm rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-sm sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Meu Perfil</DialogTitle>
           </DialogHeader>
@@ -143,7 +143,7 @@ export function BottomNav() {
 
       {/* Change Password Dialog */}
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
-        <DialogContent className="bg-surface border-border text-foreground sm:max-w-sm rounded-2xl">
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-sm sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Alterar Senha</DialogTitle>
             <DialogDescription className="text-muted-foreground">Sua conta será protegida</DialogDescription>

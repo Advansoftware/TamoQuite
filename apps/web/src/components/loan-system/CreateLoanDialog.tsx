@@ -195,7 +195,7 @@ export function CreateLoanDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-foreground sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">Novo Empréstimo</DialogTitle>
           <DialogDescription className="text-muted-foreground">
