@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Smartphone, MessageSquare, Loader2, CheckCircle2, XCircle, QrCode } from 'lucide-react';
+import { Smartphone, MessageSquare, Loader2, CheckCircle2, XCircle, QrCode, CreditCard, Calendar, ExternalLink, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 type WhatsappStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
@@ -357,21 +357,171 @@ function BillingTab() {
   );
 }
 
+interface SubscriptionInfo {
+  status: string;
+  hasSubscription: boolean;
+  currentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean;
+  amount: number | null;
+  currency: string | null;
+  interval: string | null;
+}
+
+const STATUS_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' }> = {
+  active: { label: 'Ativa', tone: 'ok' },
+  trialing: { label: 'Em período de teste', tone: 'ok' },
+  past_due: { label: 'Pagamento pendente', tone: 'warn' },
+  incomplete: { label: 'Incompleta', tone: 'warn' },
+  unpaid: { label: 'Não paga', tone: 'bad' },
+  canceled: { label: 'Cancelada', tone: 'bad' },
+  INACTIVE: { label: 'Inativa', tone: 'bad' },
+};
+
+const INTERVAL_LABEL: Record<string, string> = {
+  day: 'dia',
+  week: 'semana',
+  month: 'mês',
+  year: 'ano',
+};
+
+function SubscriptionTab() {
+  const [info, setInfo] = useState<SubscriptionInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [opening, setOpening] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/stripe/subscription');
+        if (res.ok) setInfo(await res.json());
+      } catch { /* ignore */ } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const openPortal = async () => {
+    setOpening(true);
+    try {
+      const res = await apiPost('/api/stripe/portal', {});
+      if (!res.ok) {
+        toast.error((await getApiError(res)) || 'Erro ao abrir o portal de assinatura');
+        setOpening(false);
+        return;
+      }
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      toast.error('Erro de conexão ao abrir o portal');
+      setOpening(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const status = info?.status ?? 'INACTIVE';
+  const meta = STATUS_LABEL[status] ?? { label: status, tone: 'warn' as const };
+  const toneClass =
+    meta.tone === 'ok'
+      ? 'bg-neon-dim text-neon'
+      : meta.tone === 'warn'
+        ? 'bg-amber-500/15 text-amber-400'
+        : 'bg-red-500/15 text-red-400';
+
+  const renewLabel = info?.cancelAtPeriodEnd ? 'Acesso até' : 'Próxima cobrança';
+  const renewDate =
+    info?.currentPeriodEnd != null
+      ? new Date(info.currentPeriodEnd * 1000).toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+      : null;
+  const priceLabel =
+    info?.amount != null && info.currency
+      ? `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: info.currency.toUpperCase() }).format(
+          info.amount / 100,
+        )}${info.interval ? ` / ${INTERVAL_LABEL[info.interval] ?? info.interval}` : ''}`
+      : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-surface p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-neon-dim flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-neon" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Plano Completo</p>
+              {priceLabel && <p className="text-xs text-muted-foreground">{priceLabel}</p>}
+            </div>
+          </div>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${toneClass}`}>{meta.label}</span>
+        </div>
+
+        {renewDate && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="w-4 h-4" />
+            <span>
+              {renewLabel}: <span className="text-foreground font-medium">{renewDate}</span>
+            </span>
+          </div>
+        )}
+
+        {info?.cancelAtPeriodEnd && (
+          <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-300">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>Sua assinatura será cancelada ao fim do período atual. Você pode reativá-la no portal.</span>
+          </div>
+        )}
+      </div>
+
+      <Button
+        onClick={openPortal}
+        disabled={opening || !info?.hasSubscription}
+        className="w-full bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl h-11"
+      >
+        {opening ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <>
+            <ExternalLink className="w-4 h-4 mr-2" /> Gerenciar assinatura
+          </>
+        )}
+      </Button>
+
+      <p className="text-xs text-muted-foreground text-center leading-relaxed">
+        No portal seguro da Stripe você pode atualizar o cartão, ver faturas, cancelar ou reativar sua assinatura.
+      </p>
+    </div>
+  );
+}
+
 export function SettingsView() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <div>
         <h1 className="text-xl font-bold text-foreground">Configurações</h1>
-        <p className="text-sm text-muted-foreground">Conexão do WhatsApp e cobranças automáticas.</p>
+        <p className="text-sm text-muted-foreground">Conexão do WhatsApp, cobranças automáticas e assinatura.</p>
       </div>
 
       <Tabs defaultValue="whatsapp" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-surface">
+        <TabsList className="grid w-full grid-cols-3 bg-surface">
           <TabsTrigger value="whatsapp" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
             <Smartphone className="w-4 h-4 mr-1.5" /> WhatsApp
           </TabsTrigger>
           <TabsTrigger value="billing" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
             <MessageSquare className="w-4 h-4 mr-1.5" /> Cobrança
+          </TabsTrigger>
+          <TabsTrigger value="subscription" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
+            <CreditCard className="w-4 h-4 mr-1.5" /> Assinatura
           </TabsTrigger>
         </TabsList>
         <TabsContent value="whatsapp" className="mt-4">
@@ -379,6 +529,9 @@ export function SettingsView() {
         </TabsContent>
         <TabsContent value="billing" className="mt-4">
           <BillingTab />
+        </TabsContent>
+        <TabsContent value="subscription" className="mt-4">
+          <SubscriptionTab />
         </TabsContent>
       </Tabs>
     </div>

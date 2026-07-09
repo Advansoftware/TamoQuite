@@ -1,11 +1,13 @@
 import {
   Controller,
+  Get,
   Post,
   Req,
   Res,
   UseGuards,
   Headers,
   NotFoundException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -71,6 +73,74 @@ export class StripeController {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
       throw new InternalServerErrorException(`Erro ao criar sessão de checkout: ${message}`);
+    }
+  }
+
+  // Current subscription details for the "Assinatura" settings tab.
+  @UseGuards(JwtAuthGuard)
+  @Get('subscription')
+  async subscription(@CurrentUser('id') userId: string) {
+    const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const base = {
+      status: user.subscriptionStatus ?? 'INACTIVE',
+      hasSubscription: false as boolean,
+      currentPeriodEnd: null as number | null,
+      cancelAtPeriodEnd: false as boolean,
+      amount: null as number | null,
+      currency: null as string | null,
+      interval: null as string | null,
+    };
+
+    if (!user.stripeSubscriptionId) {
+      return base;
+    }
+
+    try {
+      const sub = await this.stripe.client.subscriptions.retrieve(user.stripeSubscriptionId);
+      const price = sub.items.data[0]?.price;
+      return {
+        ...base,
+        status: sub.status,
+        hasSubscription: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        currentPeriodEnd: (sub as any).current_period_end ?? null,
+        cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+        amount: price?.unit_amount ?? null,
+        currency: price?.currency ?? null,
+        interval: price?.recurring?.interval ?? null,
+      };
+    } catch {
+      // Subscription id stale/deleted on Stripe — fall back to the stored status.
+      return base;
+    }
+  }
+
+  // Opens the Stripe Billing Portal so the user can manage/cancel/update payment.
+  @UseGuards(JwtAuthGuard)
+  @Post('portal')
+  async portal(@CurrentUser('id') userId: string, @Req() req: Request) {
+    const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    if (!user.stripeCustomerId) {
+      throw new BadRequestException('Nenhuma assinatura encontrada para gerenciar');
+    }
+
+    const origin =
+      (req.headers['origin'] as string) ||
+      this.config.get<string>('WEB_ORIGIN') ||
+      'http://localhost:3000';
+
+    try {
+      const session = await this.stripe.client.billingPortal.sessions.create({
+        customer: user.stripeCustomerId,
+        return_url: `${origin}/dashboard`,
+      });
+      return { url: session.url };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      throw new InternalServerErrorException(`Erro ao abrir o portal de assinatura: ${message}`);
     }
   }
 
