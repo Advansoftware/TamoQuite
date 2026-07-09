@@ -1,0 +1,11 @@
+# Override APENAS para desenvolvimento local.
+# O `docker compose up` mescla este arquivo automaticamente; o Coolify usa só o
+# docker-compose.yml (com `expose`), então isto não afeta produção.
+# Publica as portas no host da SUA máquina para você acessar via localhost.
+services:
+  api:
+    ports:
+      - "${API_PORT:-3042}:3042"
+  web:
+    ports:
+      - "${WEB_PORT:-3000}:3000"

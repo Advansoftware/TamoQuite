@@ -34,8 +34,10 @@ services:
       STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-price_1Tj2ZQCsywhPRDWax02I6aMH}
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
-    ports:
-      - "${API_PORT:-3042}:3042"
+    # Sem publicar porta no host (evita conflito no VPS). O proxy do Coolify roteia
+    # o domínio da API para esta porta interna. Atribua o domínio ao serviço `api` no Coolify.
+    expose:
+      - "3042"
 
   web:
     build:
@@ -48,8 +50,10 @@ services:
       API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3042}
       PORT: 3000
       TZ: ${TZ:-America/Sao_Paulo}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+    # Sem publicar porta no host. O proxy do Coolify roteia o domínio do app para esta
+    # porta interna. Atribua o domínio ao serviço `web` no Coolify.
+    expose:
+      - "3000"
 
 volumes:
   db_data:
