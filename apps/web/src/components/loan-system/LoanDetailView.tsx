@@ -62,9 +62,16 @@ interface LoanDetail {
   status: string;
   createdAt: string;
   doNotCharge?: boolean;
+  paymentFrequency?: string;
   borrower: { id: string; name: string; whatsapp: string };
   installments: Installment[];
 }
+
+const FREQUENCY_LABEL: Record<string, string> = {
+  WEEKLY: 'Semanal',
+  BIWEEKLY: 'Quinzenal',
+  MONTHLY: 'Mensal',
+};
 
 async function fetchLoanData(selectedLoanId: string): Promise<{ loan: LoanDetail; partialPayments: Record<string, PartialPayment[]> }> {
   const res = await apiFetch(`/api/loans/${selectedLoanId}`);
@@ -235,6 +242,9 @@ export function LoanDetailView() {
             <p className="text-base font-bold text-foreground">{loan.borrower.name}</p>
             <p className="text-xs text-muted-foreground">{formatPhone(loan.borrower.whatsapp)}</p>
           </div>
+          <span className="ml-auto text-[10px] px-2 py-1 rounded-md bg-surface-elevated text-muted-foreground border border-border font-medium">
+            {FREQUENCY_LABEL[loan.paymentFrequency || 'MONTHLY']}
+          </span>
         </div>
 
         {/* Stats Grid */}

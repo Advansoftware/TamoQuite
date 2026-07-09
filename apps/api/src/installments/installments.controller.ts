@@ -14,6 +14,7 @@ import {
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { addPeriods } from '../common/period.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('installments')
@@ -183,13 +184,13 @@ export class InstallmentsController {
     const loanWithInstallments = installment.loan as typeof installment.loan & {
       installments: { id: string; installmentNumber: number; dueDate: Date }[];
     };
+    const freq = installment.loan.paymentFrequency;
     const installmentsToMove = loanWithInstallments.installments.filter(
       (inst) => inst.installmentNumber >= installment.installmentNumber,
     );
 
     for (const inst of installmentsToMove) {
-      const nextDueDate = new Date(inst.dueDate);
-      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+      const nextDueDate = addPeriods(inst.dueDate, freq, 1);
 
       if (inst.id === installment.id) {
         await this.prisma.installment.update({
@@ -254,8 +255,8 @@ export class InstallmentsController {
       throw new BadRequestException('Parcela original correspondente não encontrada');
     }
 
-    const prevDueDate = new Date(nextInstallment.dueDate);
-    prevDueDate.setMonth(prevDueDate.getMonth() - 1);
+    const freq = interestInstallment.loan.paymentFrequency;
+    const prevDueDate = addPeriods(nextInstallment.dueDate, freq, -1);
 
     const restoreData: Record<string, unknown> = {
       dueDate: prevDueDate,
@@ -279,8 +280,7 @@ export class InstallmentsController {
     );
 
     for (const inst of subsequentInstallments) {
-      const prevDate = new Date(inst.dueDate);
-      prevDate.setMonth(prevDate.getMonth() - 1);
+      const prevDate = addPeriods(inst.dueDate, freq, -1);
       await this.prisma.installment.update({
         where: { id: inst.id },
         data: { installmentNumber: inst.installmentNumber - 1, dueDate: prevDate },
@@ -325,13 +325,13 @@ export class InstallmentsController {
       const loanWithInstallments = installment.loan as typeof installment.loan & {
         installments: { id: string; installmentNumber: number; dueDate: Date }[];
       };
+      const freq = installment.loan.paymentFrequency;
       const installmentsToMove = loanWithInstallments.installments.filter(
         (inst) => inst.installmentNumber >= installment.installmentNumber,
       );
 
       for (const inst of installmentsToMove) {
-        const nextDueDate = new Date(inst.dueDate);
-        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+        const nextDueDate = addPeriods(inst.dueDate, freq, 1);
         await this.prisma.installment.update({
           where: { id: inst.id },
           data: { installmentNumber: inst.installmentNumber + 1, dueDate: nextDueDate },

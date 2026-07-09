@@ -65,6 +65,7 @@ export function CreateLoanDialog({
     totalAmount: '',
     installmentValue: '',
     installmentCount: '',
+    frequency: 'MONTHLY',
     startDate: new Date().toISOString().split('T')[0],
   });
 
@@ -96,6 +97,7 @@ export function CreateLoanDialog({
           totalAmount: '',
           installmentValue: '',
           installmentCount: '',
+          frequency: 'MONTHLY',
           startDate: new Date().toISOString().split('T')[0],
         });
         setCalcMode('BY_RATE');
@@ -110,6 +112,9 @@ export function CreateLoanDialog({
   const r = parseFloat(form.interestRate) || 0;
   const totalInput = parseFloat(form.totalAmount) || 0;
   const pmtInput = parseFloat(form.installmentValue) || 0;
+
+  const periodNoun = form.frequency === 'WEEKLY' ? 'semana' : form.frequency === 'BIWEEKLY' ? 'quinzena' : 'mês';
+  const periodAbbr = form.frequency === 'WEEKLY' ? 'a.s.' : form.frequency === 'BIWEEKLY' ? 'a.q.' : 'a.m.';
 
   let previewTotal = 0;
   let previewPmt = 0;
@@ -152,6 +157,7 @@ export function CreateLoanDialog({
         originalAmount: P,
         interestRate: finalRate,
         installmentCount: n,
+        frequency: form.frequency,
         startDate: form.startDate,
       });
 
@@ -285,16 +291,16 @@ export function CreateLoanDialog({
 
           {calcMode === 'BY_RATE' ? (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Taxa de Juros (% a.m.) *</label>
-              <Input 
-                type="number" 
-                step="0.01" 
-                placeholder="Ex: 2.5" 
-                value={form.interestRate} 
-                onChange={(e) => setForm({ ...form, interestRate: e.target.value })} 
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" 
+              <label className="text-sm font-medium">Taxa de Juros (% {periodAbbr}) *</label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Ex: 2.5"
+                value={form.interestRate}
+                onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
               />
-              <p className="text-xs text-muted-foreground">CET do banco — taxa mensal para cálculo (tabela Price)</p>
+              <p className="text-xs text-muted-foreground">Taxa por {periodNoun} para cálculo (tabela Price)</p>
             </div>
           ) : (
             <>
@@ -323,6 +329,23 @@ export function CreateLoanDialog({
               </div>
             </>
           )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Periodicidade *</label>
+            <Select
+              value={form.frequency}
+              onValueChange={(v) => setForm({ ...form, frequency: v })}
+            >
+              <SelectTrigger className="w-full bg-surface-elevated border-border text-foreground rounded-xl data-[size=default]:h-11 h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-surface-elevated border-border">
+                <SelectItem value="WEEKLY" className="text-foreground">Semanal (a cada 7 dias)</SelectItem>
+                <SelectItem value="BIWEEKLY" className="text-foreground">Quinzenal (a cada 15 dias)</SelectItem>
+                <SelectItem value="MONTHLY" className="text-foreground">Mensal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="flex gap-4">
             <div className="flex-1 space-y-2">
@@ -376,7 +399,7 @@ export function CreateLoanDialog({
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-muted-foreground">Taxa equivalente</span>
-                <span className="text-xs text-foreground font-medium">{previewRate.toFixed(2)}% a.m.</span>
+                <span className="text-xs text-foreground font-medium">{previewRate.toFixed(2)}% {periodAbbr}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-muted-foreground">Total com juros</span>

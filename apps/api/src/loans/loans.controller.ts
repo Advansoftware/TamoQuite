@@ -13,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { addPeriods, normalizeFrequency } from '../common/period.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('loans')
@@ -41,9 +42,11 @@ export class LoansController {
       interestRate?: number;
       installmentCount?: number;
       startDate?: string;
+      frequency?: string;
     },
   ) {
     const { borrowerId, originalAmount, interestRate, installmentCount, startDate } = body;
+    const frequency = normalizeFrequency(body.frequency);
 
     if (!borrowerId || !originalAmount || !interestRate || !installmentCount || !startDate) {
       throw new BadRequestException('Todos os campos são obrigatórios');
@@ -52,11 +55,11 @@ export class LoansController {
     const borrower = await this.prisma.borrower.findFirst({ where: { id: borrowerId, userId } });
     if (!borrower) throw new NotFoundException('Devedor não encontrado');
 
-    // Price table calculation (ported 1:1 from the original Next.js route)
-    const monthlyRate = interestRate / 100;
+    // Price table calculation — interestRate is the rate per installment period.
+    const periodRate = interestRate / 100;
     const totalAmount =
-      ((originalAmount * monthlyRate * Math.pow(1 + monthlyRate, installmentCount)) /
-        (Math.pow(1 + monthlyRate, installmentCount) - 1)) *
+      ((originalAmount * periodRate * Math.pow(1 + periodRate, installmentCount)) /
+        (Math.pow(1 + periodRate, installmentCount) - 1)) *
       installmentCount;
     const installmentValue = totalAmount / installmentCount;
 
@@ -68,11 +71,9 @@ export class LoansController {
       status: string;
     }[] = [];
     for (let i = 1; i <= installmentCount; i++) {
-      const dueDate = new Date(start);
-      dueDate.setMonth(dueDate.getMonth() + i);
       installmentsData.push({
         installmentNumber: i,
-        dueDate,
+        dueDate: addPeriods(start, frequency, i),
         amount: Math.round(installmentValue * 100) / 100,
         status: 'PENDING',
       });
@@ -87,6 +88,7 @@ export class LoansController {
         totalAmount: Math.round(totalAmount * 100) / 100,
         installmentCount,
         startDate: new Date(startDate),
+        paymentFrequency: frequency,
         status: 'ACTIVE',
         installments: { create: installmentsData },
       },

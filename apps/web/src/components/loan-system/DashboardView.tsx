@@ -47,13 +47,15 @@ interface DashboardData {
 
 import { formatCurrency, formatDateShort, getDaysUntil, getDaysLabel, generateWhatsAppLink, generateChargeMessage, getStatusLabel, getStatusBgColor, formatPhone } from '@/lib/helpers';
 import { useAppStore } from '@/lib/store';
-import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, MessageCircle, DollarSign } from 'lucide-react';
+import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, MessageCircle, DollarSign, Plus, UserPlus } from 'lucide-react';
+import { CreateLoanDialog } from './CreateLoanDialog';
 
 export function DashboardView() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loanDialogOpen, setLoanDialogOpen] = useState(false);
   const router = useRouter();
-  const { refreshKey, setLoansFilter } = useAppStore();
+  const { refreshKey, setLoansFilter, triggerRefresh } = useAppStore();
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -319,10 +321,35 @@ export function DashboardView() {
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">Nenhum empréstimo cadastrado</p>
-            <p className="text-xs text-muted-foreground mt-1">Comece cadastrando uma pessoa e criando um empréstimo</p>
+            <p className="text-xs text-muted-foreground mt-1">Crie seu primeiro empréstimo para começar</p>
+          </div>
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <button
+              onClick={() => setLoanDialogOpen(true)}
+              className="inline-flex items-center gap-2 px-5 h-11 bg-neon text-background rounded-xl font-semibold text-sm hover:bg-neon/90 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Criar Empréstimo
+            </button>
+            <button
+              onClick={() => router.push('/borrowers')}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              ou cadastrar uma pessoa primeiro
+            </button>
           </div>
         </div>
       )}
+
+      <CreateLoanDialog
+        open={loanDialogOpen}
+        onOpenChange={setLoanDialogOpen}
+        onSuccess={() => {
+          setLoanDialogOpen(false);
+          triggerRefresh();
+        }}
+      />
     </div>
   );
 }
