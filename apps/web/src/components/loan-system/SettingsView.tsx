@@ -44,7 +44,43 @@ function WhatsappTab() {
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<WhatsappMode>('OWN');
+  const [contactPhone, setContactPhone] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings/billing');
+        if (res.ok) {
+          const s = await res.json();
+          setMode(s.whatsappMode ?? 'OWN');
+          setContactPhone(s.contactPhone ?? '');
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const changeMode = async (value: WhatsappMode) => {
+    const prev = mode;
+    setMode(value);
+    try {
+      const res = await apiPut('/api/settings/billing', { whatsappMode: value });
+      if (!res.ok) {
+        setMode(prev);
+        toast.error((await getApiError(res)) || 'Erro ao salvar');
+        return;
+      }
+      toast.success('Modo de cobrança atualizado');
+    } catch {
+      setMode(prev);
+      toast.error('Erro de conexão');
+    }
+  };
+
+  const saveContact = async () => {
+    await apiPut('/api/settings/billing', { contactPhone });
+  };
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -123,6 +159,35 @@ function WhatsappTab() {
 
   return (
     <div className="space-y-5">
+      {/* Modo de envio — de qual WhatsApp saem as cobranças */}
+      <div className="p-4 rounded-2xl bg-surface border border-border space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Como enviar as cobranças</p>
+          <p className="text-xs text-muted-foreground">De qual WhatsApp saem as mensagens automáticas.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-2">
+          {MODE_OPTIONS.map((opt) => {
+            const active = mode === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => changeMode(opt.value)}
+                className={`text-left p-3 rounded-xl border transition-colors ${
+                  active ? 'border-neon bg-neon-dim' : 'border-border bg-surface-elevated hover:border-muted-foreground/40'
+                }`}
+              >
+                <p className={`text-sm font-semibold ${active ? 'text-neon' : 'text-foreground'}`}>{opt.label}</p>
+                <p className="text-xs text-muted-foreground">{opt.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Meu número — conexão via QR */}
+      {mode === 'OWN' && (
+        <>
       <div className="flex items-center gap-3 p-4 rounded-2xl bg-surface border border-border">
         {status === 'CONNECTED' ? (
           <CheckCircle2 className="w-6 h-6 text-neon shrink-0" />
@@ -188,6 +253,38 @@ function WhatsappTab() {
           </Button>
         )}
       </div>
+        </>
+      )}
+
+      {/* Número TamoQuite — contato do credor mostrado ao devedor */}
+      {mode === 'GLOBAL' && (
+        <div className="p-4 rounded-2xl bg-surface border border-border space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">
+              Seu contato para o devedor ({'{{telefone_credor}}'})
+            </label>
+            <Input
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              onBlur={saveContact}
+              placeholder="(11) 99999-8888"
+              className="bg-surface-elevated border-border rounded-xl h-9"
+            />
+          </div>
+          <div className="rounded-xl bg-neon-dim/40 border border-border p-3 text-xs text-muted-foreground leading-relaxed">
+            As mensagens saem de um número TamoQuite, identificando{' '}
+            <span className="text-foreground font-medium">você</span> como quem emprestou ({'{{credor}}'}) e mostrando o
+            contato acima para o devedor te encontrar. Ajuste os textos na aba Cobrança.
+          </div>
+        </div>
+      )}
+
+      {/* Só manual */}
+      {mode === 'MANUAL' && (
+        <div className="p-4 rounded-2xl bg-surface border border-border text-xs text-muted-foreground leading-relaxed">
+          Nenhum envio automático. Você dispara as cobranças manualmente pelos links de WhatsApp em cada parcela.
+        </div>
+      )}
     </div>
   );
 }
@@ -215,7 +312,9 @@ function BillingTab() {
     if (!settings) return;
     setSaving(true);
     try {
-      const res = await apiPut('/api/settings/billing', settings);
+      // Mode + creditor contact are owned by the WhatsApp tab; don't resend them here.
+      const { whatsappMode: _mode, contactPhone: _contact, ...payload } = settings;
+      const res = await apiPut('/api/settings/billing', payload);
       if (!res.ok) {
         toast.error((await getApiError(res)) || 'Erro ao salvar');
         return;
@@ -236,50 +335,6 @@ function BillingTab() {
 
   return (
     <div className="space-y-5">
-      {/* Modo de envio */}
-      <div className="p-4 rounded-2xl bg-surface border border-border space-y-3">
-        <div>
-          <p className="text-sm font-semibold text-foreground">Como enviar as cobranças</p>
-          <p className="text-xs text-muted-foreground">Escolha de onde saem as mensagens automáticas.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-2">
-          {MODE_OPTIONS.map((opt) => {
-            const active = settings.whatsappMode === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => patch({ whatsappMode: opt.value })}
-                className={`text-left p-3 rounded-xl border transition-colors ${
-                  active
-                    ? 'border-neon bg-neon-dim'
-                    : 'border-border bg-surface-elevated hover:border-muted-foreground/40'
-                }`}
-              >
-                <p className={`text-sm font-semibold ${active ? 'text-neon' : 'text-foreground'}`}>{opt.label}</p>
-                <p className="text-xs text-muted-foreground">{opt.desc}</p>
-              </button>
-            );
-          })}
-        </div>
-        {settings.whatsappMode === 'GLOBAL' && (
-          <div className="space-y-1.5 pt-1">
-            <label className="text-xs text-muted-foreground">
-              Seu contato para o devedor ({'{{telefone_credor}}'})
-            </label>
-            <Input
-              value={settings.contactPhone ?? ''}
-              onChange={(e) => patch({ contactPhone: e.target.value })}
-              placeholder="(11) 99999-8888"
-              className="bg-surface-elevated border-border rounded-xl h-9"
-            />
-            <p className="text-xs text-amber-400/90">
-              No modo TamoQuite, todas as mensagens precisam conter {'{{credor}}'} para identificar quem cobra.
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* Lembrete antes do vencimento */}
       <div className="p-4 rounded-2xl bg-surface border border-border space-y-3">
         <div className="flex items-center justify-between">

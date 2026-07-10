@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   DEFAULT_DUE_TEMPLATE,
+  DEFAULT_GLOBAL_DUE_TEMPLATE,
+  DEFAULT_GLOBAL_OVERDUE_TEMPLATE,
+  DEFAULT_GLOBAL_REMINDER_TEMPLATE,
   DEFAULT_OVERDUE_TEMPLATE,
   DEFAULT_REMINDER_TEMPLATE,
   hasCreditorPlaceholder,
@@ -70,21 +73,22 @@ export class BillingSettingsService {
       if (body[key] !== undefined) data[key] = body[key];
     }
 
-    // In GLOBAL mode the shared number requires every template to name the creditor.
-    const mode = (data.whatsappMode as WhatsappMode | undefined) ?? (current.whatsappMode as WhatsappMode);
-    if (mode === 'GLOBAL') {
-      const templates = {
-        reminderTemplate: (data.reminderTemplate as string) ?? current.reminderTemplate,
-        dueTemplate: (data.dueTemplate as string) ?? current.dueTemplate,
-        overdueTemplate: (data.overdueTemplate as string) ?? current.overdueTemplate,
-      };
-      const missing = Object.entries(templates)
-        .filter(([, tpl]) => !hasCreditorPlaceholder(tpl))
-        .map(([k]) => k);
-      if (missing.length > 0) {
-        throw new BadRequestException(
-          'No modo Global, todas as mensagens devem incluir {{credor}} para identificar quem está cobrando.',
-        );
+    // In GLOBAL mode the shared number is anonymous to the debtor, so every message
+    // must name the creditor. Any template still missing {{credor}} is auto-filled
+    // with the global default (which already includes {{credor}}/{{telefone_credor}}),
+    // so switching modes never breaks or blocks the save.
+    // Only auto-fill when switching INTO global mode, so later template edits in
+    // the billing tab are never silently overwritten.
+    const switchingToGlobal = data.whatsappMode === 'GLOBAL' && current.whatsappMode !== 'GLOBAL';
+    if (switchingToGlobal) {
+      const fills: [keyof typeof current, string, string][] = [
+        ['reminderTemplate', 'reminderTemplate', DEFAULT_GLOBAL_REMINDER_TEMPLATE],
+        ['dueTemplate', 'dueTemplate', DEFAULT_GLOBAL_DUE_TEMPLATE],
+        ['overdueTemplate', 'overdueTemplate', DEFAULT_GLOBAL_OVERDUE_TEMPLATE],
+      ];
+      for (const [field, key, fallback] of fills) {
+        const effective = (data[key] as string | undefined) ?? (current[field] as string);
+        if (!hasCreditorPlaceholder(effective)) data[key] = fallback;
       }
     }
 
