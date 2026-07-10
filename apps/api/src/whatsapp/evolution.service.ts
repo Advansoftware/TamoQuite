@@ -13,11 +13,15 @@ export type EvolutionState = 'open' | 'connecting' | 'close' | 'unknown';
 export class EvolutionService {
   private readonly logger = new Logger(EvolutionService.name);
   private readonly http: AxiosInstance;
+  private readonly webhookUrl: string;
   readonly enabled: boolean;
 
   constructor(config: ConfigService) {
     const baseURL = config.get<string>('EVOLUTION_API_URL') || '';
     const apikey = config.get<string>('EVOLUTION_API_KEY') || '';
+    // Public URL of THIS API's webhook endpoint, so Evolution can push inbound
+    // messages for the auto-reply flow (e.g. https://api.seudominio.com/api/whatsapp/webhook).
+    this.webhookUrl = (config.get<string>('EVOLUTION_WEBHOOK_URL') || '').trim();
     this.enabled = !!baseURL && !!apikey;
     this.http = axios.create({
       baseURL: baseURL.replace(/\/$/, ''),
@@ -28,11 +32,19 @@ export class EvolutionService {
 
   async createInstance(instanceName: string): Promise<void> {
     try {
-      await this.http.post('/instance/create', {
+      const payload: Record<string, unknown> = {
         instanceName,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-      });
+      };
+      if (this.webhookUrl) {
+        payload.webhook = {
+          url: this.webhookUrl,
+          byEvents: false,
+          events: ['MESSAGES_UPSERT'],
+        };
+      }
+      await this.http.post('/instance/create', payload);
     } catch (err: any) {
       // 403/409 => instance already exists; safe to ignore and proceed to connect.
       const status = err?.response?.status;

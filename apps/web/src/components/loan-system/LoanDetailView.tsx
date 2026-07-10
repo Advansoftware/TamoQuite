@@ -62,6 +62,7 @@ interface LoanDetail {
   status: string;
   createdAt: string;
   doNotCharge?: boolean;
+  whatsappMode?: 'MANUAL' | 'OWN' | 'GLOBAL' | null;
   paymentFrequency?: string;
   borrower: { id: string; name: string; whatsapp: string };
   installments: Installment[];
@@ -228,7 +229,11 @@ export function LoanDetailView() {
         </button>
       </div>
 
-      <LoanBillingCard loanId={loan.id} initialDoNotCharge={!!loan.doNotCharge} />
+      <LoanBillingCard
+        loanId={loan.id}
+        initialDoNotCharge={!!loan.doNotCharge}
+        initialWhatsappMode={loan.whatsappMode ?? null}
+      />
 
       {/* Borrower Info */}
       <div className="bg-surface rounded-2xl p-4 border border-border">

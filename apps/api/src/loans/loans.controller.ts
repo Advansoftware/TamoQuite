@@ -128,6 +128,7 @@ export class LoansController {
     body: {
       doNotCharge?: boolean;
       billingOverride?: boolean;
+      whatsappMode?: string | null;
       remindBeforeEnabled?: boolean | null;
       daysBefore?: number | null;
       sendOnDueDate?: boolean | null;
@@ -142,6 +143,7 @@ export class LoansController {
     for (const key of [
       'doNotCharge',
       'billingOverride',
+      'whatsappMode',
       'remindBeforeEnabled',
       'daysBefore',
       'sendOnDueDate',

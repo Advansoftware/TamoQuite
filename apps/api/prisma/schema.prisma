@@ -78,6 +78,7 @@ model Loan {
   // Billing / cobrança
   doNotCharge         Boolean  @default(false)
   billingOverride     Boolean  @default(false)
+  whatsappMode        String?  // null = herda do usuário. MANUAL | OWN | GLOBAL
   remindBeforeEnabled Boolean?
   daysBefore          Int?
   sendOnDueDate       Boolean?
@@ -128,14 +129,55 @@ model WhatsappInstance {
   status          String     @default("DISCONNECTED") // DISCONNECTED | CONNECTING | CONNECTED
   connectedNumber String?
   lastConnectedAt DateTime?
+  lastSentAt      DateTime?  // usado pelo worker para throttle (rate limit por instância)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
+}
+
+// Pool de números gerenciados pelo admin — usados no modo GLOBAL.
+model GlobalWhatsappInstance {
+  id              String    @id @default(cuid())
+  instanceName    String    @unique
+  label           String?
+  status          String    @default("DISCONNECTED") // DISCONNECTED | CONNECTING | CONNECTED
+  connectedNumber String?
+  isActive        Boolean   @default(true)
+  ratePerMinute   Int       @default(8)   // teto de envios por minuto (anti-ban)
+  dailyCap        Int       @default(500) // teto por dia (0 = ilimitado)
+  sentToday       Int       @default(0)
+  dayAnchor       DateTime  @default(now())
+  lastSentAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Fila de saída — o cron enfileira; o worker drena com throttle.
+model OutboundMessage {
+  id            String    @id @default(cuid())
+  userId        String
+  phone         String
+  message       String    @db.Text
+  mode          String    // OWN | GLOBAL
+  purpose       String    @default("BILLING") // BILLING | AUTOREPLY
+  chargeLogId   String?
+  instanceName  String?
+  status        String    @default("PENDING") // PENDING | SENDING | SENT | FAILED
+  attempts      Int       @default(0)
+  scheduledFor  DateTime  @default(now())
+  sentAt        DateTime?
+  error         String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  @@index([status, scheduledFor])
+  @@index([userId])
 }
 
 model BillingSettings {
   id                  String     @id @default(cuid())
   userId              String     @unique
   user                SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whatsappMode        String     @default("OWN") // MANUAL | OWN | GLOBAL
+  contactPhone        String?    // {{telefone_credor}} nos templates globais
   remindBeforeEnabled Boolean    @default(true)
   daysBefore          Int        @default(3)
   sendOnDueDate       Boolean    @default(true)

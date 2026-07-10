@@ -2,10 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { GlobalWhatsappService } from '../global-whatsapp/global-whatsapp.service';
+import { OutboundService } from '../outbound/outbound.service';
 import { BillingSettingsService } from './billing-settings.service';
 import { renderTemplate } from './billing.constants';
 
 type ChargeType = 'REMINDER' | 'DUE' | 'OVERDUE';
+
+// Global sends are spread across this window (jitter) so a whole hour's worth of
+// users never enqueues with the same scheduledFor. The worker's per-instance rate
+// limit is the real throttle; this just avoids a thundering herd at tick time.
+const GLOBAL_STAGGER_MS = 10 * 60 * 1000;
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -23,6 +30,8 @@ export class BillingCron {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsappService,
+    private readonly pool: GlobalWhatsappService,
+    private readonly outbound: OutboundService,
     private readonly settings: BillingSettingsService,
   ) {}
 
@@ -32,7 +41,7 @@ export class BillingCron {
   async hourlySweep() {
     const hour = new Date().getHours();
     const allSettings = await this.prisma.billingSettings.findMany({
-      where: { sendHour: hour },
+      where: { sendHour: hour, whatsappMode: { not: 'MANUAL' } },
     });
     for (const s of allSettings) {
       try {
@@ -43,12 +52,18 @@ export class BillingCron {
     }
   }
 
-  /** Processes a single user's due/overdue installments. Also exposed for manual runs. */
-  async processUser(userId: string): Promise<{ sent: number; skipped: string }> {
+  /** Enqueues a single user's due/overdue installments. Also exposed for manual runs. */
+  async processUser(userId: string): Promise<{ queued: number; skipped: string }> {
     const settings = await this.settings.getOrCreate(userId);
+    const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
+    if (!user) return { queued: 0, skipped: 'user_not_found' };
 
-    const connected = await this.whatsapp.isConnected(userId);
-    if (!connected) return { sent: 0, skipped: 'whatsapp_not_connected' };
+    const userMode = settings.whatsappMode;
+    if (userMode === 'MANUAL') return { queued: 0, skipped: 'manual_mode' };
+
+    // Connectivity prechecks (once per user) so we don't pile messages that can't send.
+    const ownConnected = await this.whatsapp.isConnected(userId);
+    const globalAvailable = await this.pool.hasConnected();
 
     const global = {
       remindBeforeEnabled: settings.remindBeforeEnabled,
@@ -70,10 +85,15 @@ export class BillingCron {
 
     const today = new Date();
     const todayStart = startOfDay(today);
-    let sent = 0;
+    let queued = 0;
 
     for (const inst of installments) {
       const cfg = this.settings.resolveForLoan(global, inst.loan);
+      const mode = this.settings.resolveMode(userMode, inst.loan.whatsappMode);
+      if (mode === 'MANUAL') continue;
+      if (mode === 'OWN' && !ownConnected) continue;
+      if (mode === 'GLOBAL' && !globalAvailable) continue;
+
       const daysUntil = daysBetween(today, new Date(inst.dueDate));
 
       let type: ChargeType | null = null;
@@ -87,7 +107,8 @@ export class BillingCron {
       }
       if (!type) continue;
 
-      // Idempotency: at most one message of this type per installment per day.
+      // Idempotency: at most one charge of this type per installment per day.
+      // A QUEUED ChargeLog (already enqueued today) also counts.
       const alreadyToday = await this.prisma.chargeLog.findFirst({
         where: { installmentId: inst.id, type, sentAt: { gte: todayStart } },
       });
@@ -96,7 +117,7 @@ export class BillingCron {
       // Cap on total overdue messages, if configured (0 = unlimited).
       if (type === 'OVERDUE' && settings.maxOverdueMessages > 0) {
         const overdueCount = await this.prisma.chargeLog.count({
-          where: { installmentId: inst.id, type: 'OVERDUE', status: 'SENT' },
+          where: { installmentId: inst.id, type: 'OVERDUE', status: { in: ['SENT', 'QUEUED'] } },
         });
         if (overdueCount >= settings.maxOverdueMessages) continue;
       }
@@ -114,37 +135,32 @@ export class BillingCron {
         vencimento: new Date(inst.dueDate),
         parcela: inst.installmentNumber,
         total: inst.loan.totalAmount,
+        credor: user.name,
+        telefone_credor: settings.contactPhone || '',
       });
 
-      try {
-        const messageId = await this.whatsapp.sendMessage(
-          userId,
-          inst.loan.borrower.whatsapp,
-          message,
-        );
-        await this.prisma.chargeLog.create({
-          data: {
-            installmentId: inst.id,
-            type,
-            status: 'SENT',
-            message,
-            evolutionMessageId: messageId || null,
-          },
-        });
-        sent++;
-      } catch (err: any) {
-        await this.prisma.chargeLog.create({
-          data: {
-            installmentId: inst.id,
-            type,
-            status: 'FAILED',
-            message,
-            error: err?.message?.slice(0, 500) || 'unknown',
-          },
-        });
-      }
+      // Record intent first (QUEUED) for idempotency, then enqueue for the worker.
+      const log = await this.prisma.chargeLog.create({
+        data: { installmentId: inst.id, type, status: 'QUEUED', message },
+      });
+
+      const scheduledFor =
+        mode === 'GLOBAL'
+          ? new Date(Date.now() + Math.floor(Math.random() * GLOBAL_STAGGER_MS))
+          : new Date();
+
+      await this.outbound.enqueue({
+        userId,
+        phone: inst.loan.borrower.whatsapp,
+        message,
+        mode,
+        purpose: 'BILLING',
+        chargeLogId: log.id,
+        scheduledFor,
+      });
+      queued++;
     }
 
-    return { sent, skipped: 'none' };
+    return { queued, skipped: 'none' };
   }
 }

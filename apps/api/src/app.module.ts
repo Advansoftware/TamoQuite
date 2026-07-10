@@ -10,7 +10,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AdminModule } from './admin/admin.module';
 import { StripeModule } from './stripe/stripe.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { GlobalWhatsappModule } from './global-whatsapp/global-whatsapp.module';
+import { OutboundModule } from './outbound/outbound.module';
 import { BillingModule } from './billing/billing.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -25,7 +28,10 @@ import { BillingModule } from './billing/billing.module';
     AdminModule,
     StripeModule,
     WhatsappModule,
+    GlobalWhatsappModule,
+    OutboundModule,
     BillingModule,
+    WebhookModule,
   ],
 })
 export class AppModule {}
