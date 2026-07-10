@@ -39,6 +39,21 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
   const date = (d: Date) =>
     new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 
+  // Stored as international digits (e.g. "5511999998888"); show as "+55 11 99999-8888"
+  // for BR, otherwise a "+"-prefixed number that phones/WhatsApp auto-linkify.
+  const phone = (raw: string): string => {
+    const digits = (raw || '').replace(/\D/g, '');
+    if (!digits) return 'contato não informado';
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+      const rest = digits.slice(2);
+      const ddd = rest.slice(0, 2);
+      const num = rest.slice(2);
+      const mid = num.length > 4 ? `${num.slice(0, num.length - 4)}-${num.slice(-4)}` : num;
+      return `+55 ${ddd} ${mid}`;
+    }
+    return `+${digits}`;
+  };
+
   return template
     .replace(/\{\{\s*nome\s*\}\}/g, vars.nome)
     .replace(/\{\{\s*valor\s*\}\}/g, currency(vars.valor))
@@ -46,7 +61,7 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
     .replace(/\{\{\s*parcela\s*\}\}/g, String(vars.parcela))
     .replace(/\{\{\s*total\s*\}\}/g, currency(vars.total))
     .replace(/\{\{\s*credor\s*\}\}/g, vars.credor)
-    .replace(/\{\{\s*telefone_credor\s*\}\}/g, vars.telefone_credor || 'contato não informado');
+    .replace(/\{\{\s*telefone_credor\s*\}\}/g, phone(vars.telefone_credor));
 }
 
 /** True if the template references the creditor — required in GLOBAL mode. */

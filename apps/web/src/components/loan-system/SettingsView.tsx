@@ -5,6 +5,7 @@ import { apiDelete, apiFetch, apiPost, apiPut, getApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -78,8 +79,13 @@ function WhatsappTab() {
     }
   };
 
-  const saveContact = async () => {
-    await apiPut('/api/settings/billing', { contactPhone });
+  const contactTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onContactChange = (val: string) => {
+    setContactPhone(val);
+    if (contactTimer.current) clearTimeout(contactTimer.current);
+    contactTimer.current = setTimeout(() => {
+      apiPut('/api/settings/billing', { contactPhone: val });
+    }, 700);
   };
 
   const fetchStatus = useCallback(async () => {
@@ -263,13 +269,7 @@ function WhatsappTab() {
             <label className="text-xs text-muted-foreground">
               Seu contato para o devedor ({'{{telefone_credor}}'})
             </label>
-            <Input
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              onBlur={saveContact}
-              placeholder="(11) 99999-8888"
-              className="bg-surface-elevated border-border rounded-xl h-9"
-            />
+            <PhoneInput value={contactPhone} onChange={onContactChange} />
           </div>
           <div className="rounded-xl bg-neon-dim/40 border border-border p-3 text-xs text-muted-foreground leading-relaxed">
             As mensagens saem de um número TamoQuite, identificando{' '}
