@@ -435,13 +435,14 @@ export function CreateLoanDialog({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Data de Início *</label>
+              <label className="text-sm font-medium">1º Vencimento *</label>
               <Input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
               />
+              <p className="text-xs text-muted-foreground">Data de vencimento da 1ª parcela. As próximas seguem a periodicidade.</p>
             </div>
           </div>
 

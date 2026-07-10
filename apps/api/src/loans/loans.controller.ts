@@ -13,7 +13,7 @@ import {
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { addPeriods, normalizeFrequency } from '../common/period.util';
+import { addPeriods, normalizeFrequency, parseDateOnly } from '../common/period.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('loans')
@@ -63,7 +63,9 @@ export class LoansController {
       installmentCount;
     const installmentValue = totalAmount / installmentCount;
 
-    const start = new Date(startDate);
+    // The date the user enters IS the first installment's due date; subsequent
+    // installments fall one period after each other.
+    const start = parseDateOnly(startDate);
     const installmentsData: {
       installmentNumber: number;
       dueDate: Date;
@@ -73,7 +75,7 @@ export class LoansController {
     for (let i = 1; i <= installmentCount; i++) {
       installmentsData.push({
         installmentNumber: i,
-        dueDate: addPeriods(start, frequency, i),
+        dueDate: addPeriods(start, frequency, i - 1),
         amount: Math.round(installmentValue * 100) / 100,
         status: 'PENDING',
       });
@@ -87,7 +89,7 @@ export class LoansController {
         interestRate,
         totalAmount: Math.round(totalAmount * 100) / 100,
         installmentCount,
-        startDate: new Date(startDate),
+        startDate: parseDateOnly(startDate),
         paymentFrequency: frequency,
         status: 'ACTIVE',
         installments: { create: installmentsData },
