@@ -27,8 +27,15 @@ import {
   Undo2,
   ArrowLeft,
   ChevronDown,
+  Send,
 } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -114,6 +121,7 @@ export function LoanDetailView() {
   const [undoRollOpen, setUndoRollOpen] = useState(false);
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
   const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
+  const [sendingChargeId, setSendingChargeId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['loan', selectedLoanId],
@@ -194,6 +202,19 @@ export function LoanDetailView() {
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const sendChargeMutation = useMutation({
+    mutationFn: async (installmentId: string) => {
+      const res = await apiPost(`/api/settings/billing/charge/${installmentId}`, {});
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+      return res.json();
+    },
+    onMutate: (installmentId: string) => setSendingChargeId(installmentId),
+    onSuccess: () => toast.success('Cobrança enviada!'),
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setSendingChargeId(null),
   });
 
   const anySubmitting = payFullMutation.isPending || payPartialMutation.isPending || payInterestMutation.isPending || rollRemainingMutation.isPending || undoPaymentMutation.isPending;
@@ -427,14 +448,36 @@ export function LoanDetailView() {
                         <DollarSign className="w-3.5 h-3.5" />
                         Pagamento Parcial
                       </button>
-                      <a
-                        href={waLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center w-10 h-10 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] rounded-xl transition-colors shrink-0"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                      </a>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            disabled={sendingChargeId === inst.id}
+                            className="flex items-center justify-center w-10 h-10 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] rounded-xl transition-colors shrink-0 disabled:opacity-60 cursor-pointer outline-none"
+                            title="Cobrar via WhatsApp"
+                          >
+                            {sendingChargeId === inst.id ? (
+                              <span className="w-4 h-4 border-2 border-[#25D366]/30 border-t-[#25D366] rounded-full animate-spin" />
+                            ) : (
+                              <MessageCircle className="w-4 h-4" />
+                            )}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-surface border-border text-foreground">
+                          <DropdownMenuItem
+                            onClick={() => sendChargeMutation.mutate(inst.id)}
+                            className="cursor-pointer focus:bg-secondary/40"
+                          >
+                            <Send className="w-4 h-4 text-neon" />
+                            Enviar cobrança agora
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild className="cursor-pointer focus:bg-secondary/40">
+                            <a href={waLink} target="_blank" rel="noopener noreferrer">
+                              <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                              Abrir no meu WhatsApp
+                            </a>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="flex gap-2">
                       <button

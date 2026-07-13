@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { BillingSettingsService } from './billing-settings.service';
@@ -26,5 +26,14 @@ export class BillingController {
   @Post('run')
   async run(@CurrentUser('id') userId: string) {
     return this.cron.processUser(userId);
+  }
+
+  // Force-send a charge for one installment right now (automatic send from the UI).
+  @Post('charge/:installmentId')
+  async chargeNow(
+    @CurrentUser('id') userId: string,
+    @Param('installmentId') installmentId: string,
+  ) {
+    return this.cron.chargeInstallmentNow(userId, installmentId);
   }
 }

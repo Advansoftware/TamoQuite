@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -162,5 +162,87 @@ export class BillingCron {
     }
 
     return { queued, skipped: 'none' };
+  }
+
+  /**
+   * Sends a charge for a single installment right now ("forçar envio"), triggered
+   * from the UI. This is the automatic counterpart to the manual wa.me link: it
+   * dispatches through the outbound queue (drained within seconds) using whichever
+   * connected number is available — the user's own when connected, otherwise the
+   * shared platform number. Throws a user-facing error when no channel is available.
+   */
+  async chargeInstallmentNow(userId: string, installmentId: string) {
+    const inst = await this.prisma.installment.findFirst({
+      where: { id: installmentId },
+      include: { loan: { include: { borrower: true } } },
+    });
+    if (!inst || inst.loan.userId !== userId) {
+      throw new NotFoundException('Parcela não encontrada');
+    }
+    if (inst.status === 'PAID') {
+      throw new BadRequestException('Esta parcela já está quitada');
+    }
+
+    const settings = await this.settings.getOrCreate(userId);
+    const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const ownConnected = await this.whatsapp.isConnected(userId);
+    const globalAvailable = await this.pool.hasConnected();
+
+    // Prefer the user's configured channel, but fall back to whatever is available
+    // so a one-off manual send still works even if their default isn't ready.
+    let mode: 'OWN' | 'GLOBAL';
+    if (settings.whatsappMode === 'GLOBAL') {
+      mode = globalAvailable ? 'GLOBAL' : 'OWN';
+    } else {
+      mode = ownConnected ? 'OWN' : 'GLOBAL';
+    }
+    if (mode === 'OWN' && !ownConnected) {
+      throw new BadRequestException(
+        'Seu WhatsApp não está conectado. Conecte na aba WhatsApp ou envie manualmente.',
+      );
+    }
+    if (mode === 'GLOBAL' && !globalAvailable) {
+      throw new BadRequestException(
+        'Envio automático indisponível no momento. Tente novamente ou envie manualmente.',
+      );
+    }
+
+    // Pick the template that matches where the installment sits relative to today.
+    const daysUntil = daysBetween(new Date(), new Date(inst.dueDate));
+    const type: ChargeType = daysUntil < 0 ? 'OVERDUE' : daysUntil === 0 ? 'DUE' : 'REMINDER';
+    const template =
+      type === 'REMINDER'
+        ? settings.reminderTemplate
+        : type === 'DUE'
+          ? settings.dueTemplate
+          : settings.overdueTemplate;
+
+    const message = renderTemplate(template, {
+      nome: inst.loan.borrower.name,
+      valor: inst.amount - (inst.paidAmount || 0),
+      vencimento: new Date(inst.dueDate),
+      parcela: inst.installmentNumber,
+      total: inst.loan.totalAmount,
+      credor: user.name,
+      telefone_credor: settings.contactPhone || '',
+    });
+
+    const log = await this.prisma.chargeLog.create({
+      data: { installmentId: inst.id, type, status: 'QUEUED', message },
+    });
+
+    await this.outbound.enqueue({
+      userId,
+      phone: inst.loan.borrower.whatsapp,
+      message,
+      mode,
+      purpose: 'BILLING',
+      chargeLogId: log.id,
+      scheduledFor: new Date(),
+    });
+
+    return { queued: true, mode };
   }
 }
