@@ -187,27 +187,7 @@ export class BillingCron {
     const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const ownConnected = await this.whatsapp.isConnected(userId);
-    const globalAvailable = await this.pool.hasConnected();
-
-    // Prefer the user's configured channel, but fall back to whatever is available
-    // so a one-off manual send still works even if their default isn't ready.
-    let mode: 'OWN' | 'GLOBAL';
-    if (settings.whatsappMode === 'GLOBAL') {
-      mode = globalAvailable ? 'GLOBAL' : 'OWN';
-    } else {
-      mode = ownConnected ? 'OWN' : 'GLOBAL';
-    }
-    if (mode === 'OWN' && !ownConnected) {
-      throw new BadRequestException(
-        'Seu WhatsApp não está conectado. Conecte na aba WhatsApp ou envie manualmente.',
-      );
-    }
-    if (mode === 'GLOBAL' && !globalAvailable) {
-      throw new BadRequestException(
-        'Envio automático indisponível no momento. Tente novamente ou envie manualmente.',
-      );
-    }
+    const mode = await this.resolveSendMode(userId, settings.whatsappMode);
 
     // Pick the template that matches where the installment sits relative to today.
     const daysUntil = daysBetween(new Date(), new Date(inst.dueDate));
@@ -244,5 +224,86 @@ export class BillingCron {
     });
 
     return { queued: true, mode };
+  }
+
+  /**
+   * Sends a custom (consolidated) charge message to a borrower right now. The text
+   * is composed on the client — it spans several installments/contracts — so we send
+   * it as-is, only appending a creditor identification when going out through the
+   * shared platform number (which is anonymous to the debtor).
+   */
+  async sendCustomCharge(userId: string, borrowerId: string, rawMessage: string) {
+    const message = (rawMessage || '').trim();
+    if (!message) throw new BadRequestException('Mensagem vazia');
+
+    const borrower = await this.prisma.borrower.findFirst({ where: { id: borrowerId, userId } });
+    if (!borrower) throw new NotFoundException('Devedor não encontrado');
+
+    const settings = await this.settings.getOrCreate(userId);
+    const user = await this.prisma.systemUser.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const mode = await this.resolveSendMode(userId, settings.whatsappMode);
+
+    let finalMessage = message;
+    if (mode === 'GLOBAL') {
+      const note = settings.contactPhone
+        ? renderTemplate(
+            'Cobrança automática em nome de {{credor}}. Dúvidas? Fale com {{credor}}: {{telefone_credor}}.',
+            {
+              nome: '',
+              valor: 0,
+              vencimento: new Date(),
+              parcela: 0,
+              total: 0,
+              credor: user.name,
+              telefone_credor: settings.contactPhone,
+            },
+          )
+        : `Cobrança automática em nome de ${user.name}.`;
+      finalMessage = `${message}\n\n${note}`;
+    }
+
+    await this.outbound.enqueue({
+      userId,
+      phone: borrower.whatsapp,
+      message: finalMessage,
+      mode,
+      purpose: 'BILLING',
+      scheduledFor: new Date(),
+    });
+
+    return { queued: true, mode };
+  }
+
+  /**
+   * Resolves which connected channel to send through, preferring the user's configured
+   * one but falling back to whatever is available. Throws a user-facing error when
+   * neither the user's own number nor the shared platform number can send right now.
+   */
+  private async resolveSendMode(userId: string, preferred: string): Promise<'OWN' | 'GLOBAL'> {
+    const ownConnected = await this.whatsapp.isConnected(userId);
+    const globalAvailable = await this.pool.hasConnected();
+
+    const mode: 'OWN' | 'GLOBAL' =
+      preferred === 'GLOBAL'
+        ? globalAvailable
+          ? 'GLOBAL'
+          : 'OWN'
+        : ownConnected
+          ? 'OWN'
+          : 'GLOBAL';
+
+    if (mode === 'OWN' && !ownConnected) {
+      throw new BadRequestException(
+        'Seu WhatsApp não está conectado. Conecte na aba WhatsApp ou envie manualmente.',
+      );
+    }
+    if (mode === 'GLOBAL' && !globalAvailable) {
+      throw new BadRequestException(
+        'Envio automático indisponível no momento. Tente novamente ou envie manualmente.',
+      );
+    }
+    return mode;
   }
 }

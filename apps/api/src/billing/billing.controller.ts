@@ -36,4 +36,13 @@ export class BillingController {
   ) {
     return this.cron.chargeInstallmentNow(userId, installmentId);
   }
+
+  // Force-send a consolidated (custom) charge message to a borrower right now.
+  @Post('charge-message')
+  async chargeMessage(
+    @CurrentUser('id') userId: string,
+    @Body() body: { borrowerId?: string; message?: string },
+  ) {
+    return this.cron.sendCustomCharge(userId, body.borrowerId ?? '', body.message ?? '');
+  }
 }

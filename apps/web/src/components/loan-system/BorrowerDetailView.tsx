@@ -5,12 +5,18 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, getApiError } from '@/lib/api';
 import { formatPhone, formatCurrency, formatDate, generateWhatsAppLink } from '@/lib/helpers';
-import { Plus, FileText, ArrowRight, ChevronRight, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Plus, FileText, ArrowRight, ChevronRight, MessageCircle, AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { CreateLoanDialog } from './CreateLoanDialog';
 
 interface BorrowerDetail {
@@ -46,6 +52,7 @@ export function BorrowerDetailView() {
   const [loading, setLoading] = useState(true);
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
   const [selectedOverdueIds, setSelectedOverdueIds] = useState<string[]>([]);
+  const [sendingConsolidated, setSendingConsolidated] = useState(false);
 
   const fetchBorrower = useCallback(async () => {
     if (!selectedBorrowerId) return;
@@ -99,7 +106,47 @@ export function BorrowerDetailView() {
   const hasOverdue = overdueInstallments.length > 0;
   const totalOverdue = overdueInstallments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
 
+  const buildConsolidatedMessage = (): string | null => {
+    if (!borrower) return null;
+    const selectedInsts = overdueInstallments.filter((i) => selectedOverdueIds.includes(i.id));
+    if (selectedInsts.length === 0) return null;
+    const totalAmount = selectedInsts.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
 
+    let msg = `Olá ${borrower.name}! 💰 Passando para lembrar das parcelas em aberto:\n\n`;
+    selectedInsts.forEach((i) => {
+      const loanIndex = borrower.loans.findIndex((l) => l.id === i.loanId);
+      const loanNumber = borrower.loans.length - loanIndex;
+      const remaining = i.amount - (i.paidAmount || 0);
+      msg += `• *Contrato #${loanNumber} — Parcela #${i.installmentNumber}* (Venceu dia ${formatDate(i.dueDate)}): *${formatCurrency(remaining)}*\n`;
+    });
+    msg += `\n*Total em aberto selecionado: ${formatCurrency(totalAmount)}*\n\nSe precisar da chave Pix ou do código de pagamento, me avise aqui. Tamo junto! 🤝`;
+    return msg;
+  };
+
+  const openConsolidatedWhatsApp = () => {
+    const msg = buildConsolidatedMessage();
+    if (!msg || !borrower) return;
+    window.open(generateWhatsAppLink(borrower.whatsapp, msg), '_blank');
+  };
+
+  const sendConsolidatedNow = async () => {
+    const msg = buildConsolidatedMessage();
+    if (!msg || !borrower) return;
+    setSendingConsolidated(true);
+    try {
+      const res = await apiPost('/api/settings/billing/charge-message', {
+        borrowerId: borrower.id,
+        message: msg,
+      });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+      toast.success('Cobrança enviada!');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao enviar cobrança');
+    } finally {
+      setSendingConsolidated(false);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-6">
@@ -197,29 +244,37 @@ export function BorrowerDetailView() {
             })}
           </div>
 
-          <button
-            disabled={selectedOverdueIds.length === 0}
-            onClick={() => {
-              const selectedInsts = overdueInstallments.filter((i) => selectedOverdueIds.includes(i.id));
-              const totalAmount = selectedInsts.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
-
-              let msg = `Olá ${borrower.name}! 💰 Passando para lembrar das parcelas em aberto:\n\n`;
-              selectedInsts.forEach((i) => {
-                const loanIndex = borrower.loans.findIndex((l) => l.id === i.loanId);
-                const loanNumber = borrower.loans.length - loanIndex;
-                const remaining = i.amount - (i.paidAmount || 0);
-                msg += `• *Contrato #${loanNumber} — Parcela #${i.installmentNumber}* (Venceu dia ${formatDate(i.dueDate)}): *${formatCurrency(remaining)}*\n`;
-              });
-              msg += `\n*Total em aberto selecionado: ${formatCurrency(totalAmount)}*\n\nSe precisar da chave Pix ou do código de pagamento, me avise aqui. Tamo junto! 🤝`;
-
-              const waLink = generateWhatsAppLink(borrower.whatsapp, msg);
-              window.open(waLink, '_blank');
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-danger text-white hover:bg-danger/95 font-bold rounded-xl text-xs transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <MessageCircle className="w-4 h-4 shrink-0" />
-            Enviar Cobrança Consolidada WhatsApp ({selectedOverdueIds.length})
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                disabled={selectedOverdueIds.length === 0 || sendingConsolidated}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-danger text-white hover:bg-danger/95 font-bold rounded-xl text-xs transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-none"
+              >
+                {sendingConsolidated ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                ) : (
+                  <MessageCircle className="w-4 h-4 shrink-0" />
+                )}
+                Enviar Cobrança Consolidada ({selectedOverdueIds.length})
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="bg-surface border-border text-foreground w-[var(--radix-dropdown-menu-trigger-width)]">
+              <DropdownMenuItem
+                onClick={sendConsolidatedNow}
+                className="cursor-pointer focus:bg-secondary/40"
+              >
+                <Send className="w-4 h-4 text-neon" />
+                Enviar cobrança agora
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={openConsolidatedWhatsApp}
+                className="cursor-pointer focus:bg-secondary/40"
+              >
+                <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                Abrir no meu WhatsApp
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
