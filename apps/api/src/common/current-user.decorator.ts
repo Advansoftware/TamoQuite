@@ -7,6 +7,7 @@ export interface AuthUser {
   role: string;
   mustChangePassword: boolean;
   subscriptionStatus: string | null;
+  notifyBeforeSubExpiryDays: number;
 }
 
 export const CurrentUser = createParamDecorator(

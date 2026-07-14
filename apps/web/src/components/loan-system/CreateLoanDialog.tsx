@@ -29,21 +29,17 @@ interface CreateLoanDialogProps {
   onSuccess: () => void;
 }
 
+// Simple interest on the original principal: total = P × (1 + rate × nº periods).
 function calcFromRate(P: number, r: number, n: number): { total: number; pmt: number } {
-  if (r <= 0) return { total: P, pmt: P / n };
-  const pmt = P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
-  return { total: pmt * n, pmt };
+  const total = P * (1 + r * n);
+  return { total, pmt: n > 0 ? total / n : 0 };
 }
 
+// Inverse of the above: which per-period rate makes the total reach F?
 function calcRateFromTotal(P: number, F: number, n: number): number {
-  let lo = 0.0001, hi = 0.5; // 0.01% to 50%
-  for (let i = 0; i < 100; i++) {
-    const mid = (lo + hi) / 2;
-    const { total } = calcFromRate(P, mid, n);
-    if (total < F) lo = mid;
-    else hi = mid;
-  }
-  return Math.round(((lo + hi) / 2) * 10000) / 100;
+  if (P <= 0 || n <= 0) return 0;
+  const rate = ((F / P - 1) / n) * 100;
+  return Math.round(rate * 100) / 100;
 }
 
 export function CreateLoanDialog({
@@ -61,6 +57,7 @@ export function CreateLoanDialog({
   const [newPerson, setNewPerson] = useState({ name: '', whatsapp: '' });
   const [creatingPerson, setCreatingPerson] = useState(false);
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
+  const [singlePayment, setSinglePayment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
@@ -139,6 +136,7 @@ export function CreateLoanDialog({
           startDate: new Date().toISOString().split('T')[0],
         });
         setCalcMode('BY_RATE');
+        setSinglePayment(false);
       }, 0);
       return () => clearTimeout(timer);
     }
@@ -146,7 +144,7 @@ export function CreateLoanDialog({
 
   // Calculations for preview
   const P = parseFloat(form.originalAmount) || 0;
-  const n = parseInt(form.installmentCount) || 0;
+  const n = singlePayment ? 1 : (parseInt(form.installmentCount) || 0);
   const r = parseFloat(form.interestRate) || 0;
   const totalInput = parseFloat(form.totalAmount) || 0;
   const pmtInput = parseFloat(form.installmentValue) || 0;
@@ -158,7 +156,13 @@ export function CreateLoanDialog({
   let previewPmt = 0;
   let previewRate = 0;
 
-  if (calcMode === 'BY_RATE' && P > 0 && r > 0 && n > 0) {
+  if (singlePayment && P > 0) {
+    // "À vista": total received in one shot. Defaults to the principal (0% interest).
+    const receive = totalInput > 0 ? totalInput : P;
+    previewTotal = receive;
+    previewPmt = receive;
+    previewRate = receive > P ? ((receive / P) - 1) * 100 : 0;
+  } else if (calcMode === 'BY_RATE' && P > 0 && r > 0 && n > 0) {
     const calc = calcFromRate(P, r / 100, n);
     previewTotal = calc.total;
     previewPmt = calc.pmt;
@@ -172,18 +176,18 @@ export function CreateLoanDialog({
   const handleCreate = async () => {
     const activeBorrowerId = fixedBorrowerId || form.borrowerId;
     let finalRate = 0;
-    let finalTotal = 0;
 
-    if (calcMode === 'BY_RATE') {
+    if (singlePayment) {
+      // Single "à vista" payment: interest is optional (receive == principal by default).
+      const receive = totalInput > 0 ? totalInput : P;
+      finalRate = receive > P ? ((receive / P) - 1) * 100 : 0;
+    } else if (calcMode === 'BY_RATE') {
       finalRate = parseFloat(form.interestRate);
-      const calc = calcFromRate(P, finalRate / 100, n);
-      finalTotal = calc.total;
     } else {
-      finalTotal = totalInput;
       finalRate = calcRateFromTotal(P, totalInput, n);
     }
 
-    if (!activeBorrowerId || !P || !finalRate || !n || !form.startDate) {
+    if (!activeBorrowerId || !P || !n || !form.startDate || (!singlePayment && !finalRate)) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -238,7 +242,7 @@ export function CreateLoanDialog({
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">Novo Empréstimo</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            {fixedBorrowerName ? `Para ${fixedBorrowerName}` : 'Crie um empréstimo com cálculo automático (tabela Price)'}
+            {fixedBorrowerName ? `Para ${fixedBorrowerName}` : 'Crie um empréstimo com cálculo automático de juros'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -316,11 +320,46 @@ export function CreateLoanDialog({
               step="0.01" 
               placeholder="Ex: 5000" 
               value={form.originalAmount} 
-              onChange={(e) => setForm({ ...form, originalAmount: e.target.value })} 
-              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" 
+              onChange={(e) => setForm({ ...form, originalAmount: e.target.value })}
+              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
             />
           </div>
 
+          {/* Tipo de pagamento: parcelado vs à vista (parcela única) */}
+          <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
+            <button
+              type="button"
+              onClick={() => setSinglePayment(false)}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${!singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Parcelado
+            </button>
+            <button
+              type="button"
+              onClick={() => setSinglePayment(true)}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              À vista (1x)
+            </button>
+          </div>
+
+          {singlePayment && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Total a Receber (R$)</label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder={P > 0 ? `Igual ao emprestado (${formatCurrency(P)})` : 'Igual ao valor emprestado'}
+                value={form.totalAmount}
+                onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
+                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+              />
+              <p className="text-xs text-muted-foreground">Deixe em branco para receber o mesmo valor emprestado (sem juros). Preencha para cobrar juros.</p>
+            </div>
+          )}
+
+          {!singlePayment && (
+          <>
           {/* Calc Mode Toggle */}
           <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
             <button
@@ -356,7 +395,7 @@ export function CreateLoanDialog({
                 onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
                 className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
               />
-              <p className="text-xs text-muted-foreground">Taxa por {periodNoun} para cálculo (tabela Price)</p>
+              <p className="text-xs text-muted-foreground">Juros de {form.interestRate || 'X'}% por {periodNoun} sobre o valor emprestado</p>
             </div>
           ) : (
             <>
@@ -385,7 +424,10 @@ export function CreateLoanDialog({
               </div>
             </>
           )}
+          </>
+          )}
 
+          {!singlePayment && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Periodicidade *</label>
             <Select
@@ -402,8 +444,10 @@ export function CreateLoanDialog({
               </SelectContent>
             </Select>
           </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {!singlePayment && (
             <div className="space-y-2">
               {calcMode === 'BY_RATE' || !form.installmentValue ? (
                 <>
@@ -433,16 +477,17 @@ export function CreateLoanDialog({
                 </>
               )}
             </div>
+            )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">1º Vencimento *</label>
+              <label className="text-sm font-medium">{singlePayment ? 'Data de Vencimento *' : '1º Vencimento *'}</label>
               <Input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
               />
-              <p className="text-xs text-muted-foreground">Data de vencimento da 1ª parcela. As próximas seguem a periodicidade.</p>
+              <p className="text-xs text-muted-foreground">{singlePayment ? 'Data em que você deve receber o valor.' : 'Data de vencimento da 1ª parcela. As próximas seguem a periodicidade.'}</p>
             </div>
           </div>
 
@@ -483,7 +528,7 @@ export function CreateLoanDialog({
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={submitting || !(fixedBorrowerId || form.borrowerId) || !P || !n || (calcMode === 'BY_RATE' && !r) || (calcMode === 'BY_TOTAL' && !totalInput)}
+            disabled={submitting || !(fixedBorrowerId || form.borrowerId) || !P || !n || (!singlePayment && calcMode === 'BY_RATE' && !r) || (!singlePayment && calcMode === 'BY_TOTAL' && !totalInput)}
             className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
           >
             {submitting ? 'Criando...' : 'Criar Empréstimo'}

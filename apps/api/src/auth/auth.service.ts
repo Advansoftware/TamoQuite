@@ -21,6 +21,7 @@ export class AuthService {
     role: string;
     mustChangePassword: boolean;
     subscriptionStatus: string | null;
+    notifyBeforeSubExpiryDays: number;
   }): AuthUser {
     return {
       id: user.id,
@@ -29,6 +30,7 @@ export class AuthService {
       role: user.role,
       mustChangePassword: user.mustChangePassword,
       subscriptionStatus: user.subscriptionStatus,
+      notifyBeforeSubExpiryDays: user.notifyBeforeSubExpiryDays,
     };
   }
 

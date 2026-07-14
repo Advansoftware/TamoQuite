@@ -12,6 +12,7 @@ import { PwaInstallPrompt } from '@/components/loan-system/PwaInstallPrompt';
 import { ChangePasswordPage } from '@/components/loan-system/ChangePasswordPage';
 import { PremiumBlockPage } from '@/components/loan-system/PremiumBlockPage';
 import { FullScreenLoader } from '@/components/loan-system/FullScreenLoader';
+import { NotificationBell } from '@/components/loan-system/NotificationBell';
 import { hasActiveSubscription } from '@/lib/helpers';
 
 const NAV = [
@@ -112,6 +113,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <span className="text-xs text-muted-foreground truncate max-w-[140px] hidden sm:inline">
               {user.name}
             </span>

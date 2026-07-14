@@ -46,22 +46,23 @@ export class LoansController {
       frequency?: string;
     },
   ) {
-    const { borrowerId, originalAmount, interestRate, installmentCount, startDate } = body;
+    const { borrowerId, originalAmount, installmentCount, startDate } = body;
     const frequency = normalizeFrequency(body.frequency);
+    // Interest is optional: a single "à vista" loan (lend 100, receive 100) has 0%.
+    const interestRate = body.interestRate ?? 0;
 
-    if (!borrowerId || !originalAmount || !interestRate || !installmentCount || !startDate) {
+    if (!borrowerId || !originalAmount || !installmentCount || installmentCount < 1 || !startDate || interestRate < 0) {
       throw new BadRequestException('Todos os campos são obrigatórios');
     }
 
     const borrower = await this.prisma.borrower.findFirst({ where: { id: borrowerId, userId } });
     if (!borrower) throw new NotFoundException('Devedor não encontrado');
 
-    // Price table calculation — interestRate is the rate per installment period.
+    // Simple interest on the original principal: total interest = P × rate × nº periods.
+    // (e.g. R$200 at 5%/month for 2 months = R$20 interest → R$220 total.) This matches
+    // informal lending and the "pay only interest" action. 0% → total equals the principal.
     const periodRate = interestRate / 100;
-    const totalAmount =
-      ((originalAmount * periodRate * Math.pow(1 + periodRate, installmentCount)) /
-        (Math.pow(1 + periodRate, installmentCount) - 1)) *
-      installmentCount;
+    const totalAmount = originalAmount * (1 + periodRate * installmentCount);
     const installmentValue = totalAmount / installmentCount;
 
     // The date the user enters IS the first installment's due date; subsequent

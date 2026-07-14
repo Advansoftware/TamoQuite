@@ -8,6 +8,7 @@ interface AuthUser {
   role: string;
   mustChangePassword: boolean;
   subscriptionStatus: string | null;
+  notifyBeforeSubExpiryDays?: number;
 }
 
 interface AppState {

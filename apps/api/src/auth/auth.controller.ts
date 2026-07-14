@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Res,
   UnauthorizedException,
   UseGuards,
@@ -81,6 +82,24 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthUser) {
     return user;
+  }
+
+  // User preference: how many days before subscription expiry to be notified.
+  @UseGuards(JwtAuthGuard)
+  @Put('notification-prefs')
+  async updateNotificationPrefs(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { notifyBeforeSubExpiryDays?: number },
+  ) {
+    const days = Number(body.notifyBeforeSubExpiryDays);
+    if (!Number.isFinite(days) || days < 1 || days > 30) {
+      throw new BadRequestException('Escolha entre 1 e 30 dias.');
+    }
+    await this.prisma.systemUser.update({
+      where: { id: user.id },
+      data: { notifyBeforeSubExpiryDays: Math.round(days) },
+    });
+    return { success: true, notifyBeforeSubExpiryDays: Math.round(days) };
   }
 
   @UseGuards(JwtAuthGuard)
