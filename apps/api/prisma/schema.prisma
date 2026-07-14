@@ -19,6 +19,7 @@ model SystemUser {
   stripeCustomerId     String?
   stripeSubscriptionId String?
   subscriptionStatus   String?      @default("INACTIVE")
+  trialUsedAt          DateTime?    // marca que o cliente já usou os 7 dias grátis (1 trial por cliente)
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
   borrowers            Borrower[]

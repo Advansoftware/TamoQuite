@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { apiUrl } from '@/lib/config';
+import { hasActiveSubscription } from '@/lib/helpers';
 import { 
   Zap, 
   Check, 
@@ -21,7 +22,8 @@ import {
   Lock,
   Mail,
   User,
-  Key
+  Key,
+  Gift,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -144,8 +146,8 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         const loginData = await loginRes.json();
         useAppStore.getState().setUser(loginData.user, loginData.token);
 
-        // Check subscription status
-        if (loginData.user.subscriptionStatus === 'active') {
+        // Check subscription status (active or in-trial → already has access)
+        if (hasActiveSubscription(loginData.user.subscriptionStatus)) {
           toast.success('Bem-vindo de volta!');
           return;
         }
@@ -234,8 +236,8 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
     },
     {
       icon: <MessageSquare className="w-6 h-6 text-neon" />,
-      title: "Cobrança Sem Constrangimento",
-      description: "Gere mensagens personalizadas e links diretos para enviar via WhatsApp em 1 clique. Esqueça a vergonha de cobrar pessoalmente."
+      title: "Cobrança Automática ou Manual",
+      description: "Você escolhe: deixe o sistema cobrar sozinho no WhatsApp na data certa, ou envie você mesmo com 1 clique pelo seu número. Do seu jeito, sem constrangimento."
     },
     {
       icon: <Calendar className="w-6 h-6 text-neon" />,
@@ -267,15 +269,15 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
     },
     {
       number: "03",
-      title: "Cobre com um Clique",
-      description: "Quando a data chegar, use nossos templates prontos de mensagens amigáveis e envie direto para o WhatsApp do devedor."
+      title: "Cobre do seu jeito",
+      description: "Deixe o sistema cobrar automaticamente no WhatsApp na data certa, ou envie você mesmo com 1 clique. Você escolhe entre automático e manual."
     }
   ];
 
   const faqs = [
     {
       question: "Como funciona a cobrança por WhatsApp?",
-      answer: "O TamoQuite gera um link oficial de conversa do WhatsApp (`wa.me`) com uma mensagem personalizada e amigável contendo os dados do débito. Você só precisa clicar no botão e enviar, sem precisar digitar nada ou passar por situações embaraçosas."
+      answer: "Você escolhe como cobrar: no modo automático, o sistema envia as mensagens de cobrança sozinho no WhatsApp na data certa (lembrete, vencimento e atraso). No modo manual, o app gera a mensagem pronta e você envia com 1 clique pelo seu próprio número. Dá pra usar os dois, do jeito que preferir."
     },
     {
       question: "O app é seguro para guardar minhas contas?",
@@ -286,8 +288,8 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       answer: "Com certeza! O TamoQuite foi construído como um PWA (Progressive Web App). Isso significa que você pode instalá-lo diretamente na tela inicial do seu celular (Android ou iPhone) como se fosse um aplicativo da App Store ou Google Play, economizando espaço e acessando mais rápido."
     },
     {
-      question: "Como funciona a assinatura de R$ 14,90?",
-      answer: "É muito simples. Cobramos uma mensalidade única de R$ 14,90 para liberar todos os recursos de forma ilimitada (cadastros de empréstimos, cobranças, juros e histórico). Não há contratos de fidelidade, você pode cancelar quando quiser através do suporte."
+      question: "Como funciona o teste grátis e a assinatura?",
+      answer: "Você começa com 7 dias grátis para testar todos os recursos. Durante esse período nada é cobrado — se cancelar dentro dos 7 dias, você não paga nada. Após o teste, a assinatura de R$ 14,90/mês é ativada automaticamente e libera tudo de forma ilimitada. Sem fidelidade, cancele quando quiser."
     }
   ];
 
@@ -324,9 +326,9 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
       <section className="relative pt-20 pb-16 md:pt-32 md:pb-24 flex flex-col items-center text-center px-6 max-w-5xl mx-auto">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] md:w-[600px] md:h-[600px] bg-neon/5 rounded-full blur-[80px] md:blur-[120px] pointer-events-none -z-10" />
 
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-elevated border border-border mb-6">
-          <span className="w-2 h-2 rounded-full bg-neon animate-pulse" />
-          <span className="text-xs text-muted-foreground font-medium">Controle financeiro pessoal e repasses simplificados</span>
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neon/10 border border-neon/30 mb-6">
+          <Gift className="w-3.5 h-3.5 text-neon" />
+          <span className="text-xs text-neon font-semibold">7 dias grátis · Cancele quando quiser</span>
         </div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.15] mb-6">
@@ -339,11 +341,11 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-          <button 
+          <button
             onClick={handleOpenCheckout}
             className="w-full sm:w-auto h-13 px-8 bg-neon hover:bg-neon/90 text-background font-bold rounded-xl flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(0,255,163,0.35)] transition-all duration-200 active:scale-[0.98] cursor-pointer text-sm"
           >
-            Assinar & Criar Conta
+            Começar 7 dias grátis
             <ArrowRight className="w-4 h-4" />
           </button>
           <a
@@ -353,6 +355,9 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
             Conhecer Recursos
           </a>
         </div>
+        <p className="text-xs text-muted-foreground mt-4">
+          Teste grátis por 7 dias. Depois, apenas <span className="text-foreground font-semibold">R$ 14,90/mês</span>. Cancele quando quiser.
+        </p>
 
         {/* Mockup Preview App */}
         <div className="w-full mt-16 md:mt-24 rounded-2xl border border-border/60 bg-surface/30 backdrop-blur-xl p-3 md:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden neon-glow">
@@ -479,16 +484,16 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="max-w-2xl mx-auto mb-12">
             <h2 className="text-xs text-neon uppercase font-bold tracking-widest mb-3">Preço Justo</h2>
-            <p className="text-3xl md:text-4xl font-bold text-foreground">Um único plano. Todos os recursos.</p>
+            <p className="text-3xl md:text-4xl font-bold text-foreground">Comece grátis por 7 dias.</p>
             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-              Para entrar no sistema, é necessária a assinatura ativa. Crie sua conta de devedores e cobranças de forma ilimitada.
+              Teste todos os recursos por 7 dias sem pagar nada. Depois, apenas R$ 14,90/mês — sem fidelidade, cancele quando quiser.
             </p>
           </div>
 
           {/* Pricing Card */}
           <div className="max-w-md mx-auto rounded-3xl border border-neon/40 bg-surface/80 backdrop-blur-xl p-8 md:p-10 shadow-[0_0_35px_rgba(0,255,163,0.1)] relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-neon text-background text-[10px] font-black uppercase tracking-wider py-1 px-4 rounded-bl-xl">
-              Melhor Oferta
+              7 dias grátis
             </div>
 
             <div className="text-left space-y-6">
@@ -497,17 +502,31 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                 <p className="text-xs text-muted-foreground mt-1">Ideal para finanças pessoais e repasses informais.</p>
               </div>
 
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold text-muted-foreground">R$</span>
-                <span className="text-5xl font-black text-foreground tracking-tight">14,90</span>
-                <span className="text-sm text-muted-foreground">/mês</span>
+              {/* Destaque do teste grátis */}
+              <div className="rounded-2xl bg-neon/10 border border-neon/30 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-neon/15 border border-neon/30 flex items-center justify-center shrink-0">
+                  <Gift className="w-5 h-5 text-neon" />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-neon leading-tight">7 dias grátis</p>
+                  <p className="text-[11px] text-muted-foreground">Sem cobrança agora. Cancele nos 7 dias e não paga nada.</p>
+                </div>
               </div>
 
-              <button 
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xs text-muted-foreground">depois</span>
+                  <span className="text-sm font-semibold text-muted-foreground">R$</span>
+                  <span className="text-5xl font-black text-foreground tracking-tight">14,90</span>
+                  <span className="text-sm text-muted-foreground">/mês</span>
+                </div>
+              </div>
+
+              <button
                 onClick={handleOpenCheckout}
                 className="w-full h-12 bg-neon hover:bg-neon/90 text-background font-bold rounded-xl transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] active:scale-[0.98] cursor-pointer text-sm flex items-center justify-center gap-2"
               >
-                Assinar & Começar Agora
+                Começar 7 dias grátis
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -515,10 +534,11 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
 
               <ul className="space-y-3">
                 {[
+                  "7 dias grátis para testar tudo",
                   "Devedores ilimitados",
                   "Empréstimos e parcelamentos ilimitados",
                   "Cálculo de juros configurável",
-                  "Mensagens automáticas para WhatsApp",
+                  "Cobrança automática pelo sistema ou manual (você escolhe)",
                   "Painel com gráficos em tempo real",
                   "PWA Instalável no celular",
                   "Sem fidelidade, cancele a qualquer momento"
@@ -702,12 +722,16 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                   </div>
 
                   <div className="p-5 rounded-2xl bg-secondary/30 border border-border/80 text-left space-y-4">
+                    <div className="flex items-center gap-2 rounded-xl bg-neon/10 border border-neon/30 p-2.5">
+                      <Gift className="w-4 h-4 text-neon shrink-0" />
+                      <span className="text-xs font-semibold text-neon">7 dias grátis — só é cobrado depois do período de teste.</span>
+                    </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-foreground font-medium">Plano Completo</span>
                       <span className="text-lg font-bold text-neon">R$ 14,90 / mês</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Libere acesso ilimitado a cadastros de devedores, empréstimos, atualizações de juros e cobranças por WhatsApp. Sem fidelidade, cancele quando quiser.
+                      Acesso ilimitado a devedores, empréstimos, juros e cobrança por WhatsApp (automática ou manual). Cancele nos 7 dias e não paga nada. Sem fidelidade.
                     </p>
                   </div>
 

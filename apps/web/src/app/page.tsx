@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { hasActiveSubscription } from '@/lib/helpers';
 import { LandingPage } from '@/components/loan-system/LandingPage';
 import { LoginPage } from '@/components/loan-system/LoginPage';
 import { PwaInstallPrompt } from '@/components/loan-system/PwaInstallPrompt';
@@ -30,9 +31,9 @@ export default function Home() {
         const res = await apiFetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.subscriptionStatus === 'active' || attempts >= maxAttempts) {
+          if (hasActiveSubscription(data.subscriptionStatus) || attempts >= maxAttempts) {
             setUser(data);
-            toast.success('Assinatura ativada com sucesso! Bem-vindo.');
+            toast.success('Tudo certo! Seus 7 dias grátis começaram. Bem-vindo!');
             window.history.replaceState({}, document.title, window.location.pathname);
             return;
           }

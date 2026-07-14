@@ -15,7 +15,22 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
   if (options.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(apiUrl(url), { ...options, headers, credentials: 'include' });
+  const res = await fetch(apiUrl(url), { ...options, headers, credentials: 'include' });
+
+  // Server-side paywall tripped: flip the cached user to inactive so the app-layout
+  // block screen shows right away, without waiting for the next /me refresh.
+  if (res.status === 403) {
+    try {
+      const data = await res.clone().json();
+      if (data?.code === 'SUBSCRIPTION_INACTIVE') {
+        useAppStore.getState().markSubscriptionInactive();
+      }
+    } catch {
+      /* not JSON — ignore */
+    }
+  }
+
+  return res;
 }
 
 export async function apiPost(url: string, body: unknown): Promise<Response> {

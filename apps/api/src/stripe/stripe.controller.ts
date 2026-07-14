@@ -61,10 +61,19 @@ export class StripeController {
     }
 
     try {
+      // 7-day free trial ("arrependimento"), but only ONCE per customer. After the
+      // trial has been used, subscribing again starts charging immediately.
+      const grantsTrial = !user.trialUsedAt;
+
       const session = await this.stripe.client.checkout.sessions.create({
         customer: customerId,
         line_items: [{ price: this.stripe.priceId, quantity: 1 }],
         mode: 'subscription',
+        // Let customers redeem admin-generated promotion codes at checkout.
+        allow_promotion_codes: true,
+        // The card is collected up front but only charged after the trial ends.
+        // Cancelling within the 7 days incurs no charge.
+        ...(grantsTrial ? { subscription_data: { trial_period_days: 7 } } : {}),
         success_url: `${origin}/?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/`,
         metadata: { userId: user.id },
@@ -180,6 +189,8 @@ export class StripeController {
                 stripeSubscriptionId: subscriptionId,
                 stripeCustomerId: customerId,
                 subscriptionStatus: subscription.status,
+                // Consume the one-time trial the moment a trialing subscription starts.
+                ...(subscription.trial_end ? { trialUsedAt: new Date() } : {}),
               },
             });
           }

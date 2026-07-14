@@ -12,6 +12,7 @@ import { PwaInstallPrompt } from '@/components/loan-system/PwaInstallPrompt';
 import { ChangePasswordPage } from '@/components/loan-system/ChangePasswordPage';
 import { PremiumBlockPage } from '@/components/loan-system/PremiumBlockPage';
 import { FullScreenLoader } from '@/components/loan-system/FullScreenLoader';
+import { hasActiveSubscription } from '@/lib/helpers';
 
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
@@ -36,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   // Subscription / password gates.
-  if (user.role === 'CLIENT' && user.subscriptionStatus !== 'active') {
+  if (user.role === 'CLIENT' && !hasActiveSubscription(user.subscriptionStatus)) {
     return (
       <>
         <PremiumBlockPage />

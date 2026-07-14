@@ -11,11 +11,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
+import { SubscriptionGuard } from '../common/subscription.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { addPeriods, normalizeFrequency, parseDateOnly } from '../common/period.util';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('loans')
 export class LoansController {
   constructor(private readonly prisma: PrismaService) {}

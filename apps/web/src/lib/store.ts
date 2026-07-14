@@ -19,6 +19,7 @@ interface AppState {
   setUser: (user: AuthUser | null, token?: string | null) => void;
   hydrateToken: () => void;
   logout: () => void;
+  markSubscriptionInactive: () => void;
 
   // UI (non-route) state
   refreshKey: number;
@@ -69,6 +70,14 @@ export const useAppStore = create<AppState>((set) => ({
     const token = getStoredToken();
     if (token) set({ token });
   },
+  // Flips the cached user to an inactive subscription so the app-layout paywall
+  // renders immediately when an API call reports the subscription is inactive.
+  markSubscriptionInactive: () =>
+    set((state) =>
+      state.user && state.user.subscriptionStatus !== 'INACTIVE'
+        ? { user: { ...state.user, subscriptionStatus: 'INACTIVE' } }
+        : {},
+    ),
   logout: () => {
     setStoredToken(null);
     if (typeof window !== 'undefined') {

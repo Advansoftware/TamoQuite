@@ -95,3 +95,11 @@ export function generateChargeMessage(name: string, amount: number, dueDate: str
   const formattedDate = formatDate(dueDate);
   return `Opa ${name}! 💰 Passando pra lembrar da parcela de ${formatCurrency(amount)} que vence dia ${formattedDate}. Tamo junto! 🤝`;
 }
+
+// Stripe subscription statuses that grant access to the app. `trialing` covers the
+// 7-day free trial; `active` is a paying subscription.
+const ACCESS_SUBSCRIPTION_STATUSES = ['active', 'trialing'];
+
+export function hasActiveSubscription(status?: string | null): boolean {
+  return !!status && ACCESS_SUBSCRIPTION_STATUSES.includes(status);
+}

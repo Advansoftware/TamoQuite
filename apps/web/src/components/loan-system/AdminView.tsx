@@ -6,13 +6,15 @@ import { useAppStore } from '@/lib/store';
 import { apiFetch, apiPost, apiDelete, getApiError } from '@/lib/api';
 import { formatDate } from '@/lib/helpers';
 import {
-  Plus, UserPlus, Shield, Trash2, ChevronRight,
+  Plus, UserPlus, Shield, Trash2, ChevronRight, Ticket, Gift, RotateCcw, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const SUPER_ADMIN_EMAIL = 'brunoantunes94@hotmail.com';
 
 interface ManagedUser {
   id: string;
@@ -21,7 +23,51 @@ interface ManagedUser {
   role: string;
   mustChangePassword: boolean;
   createdAt: string;
+  subscriptionStatus: string | null;
+  trialUsedAt: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   _count: { borrowers: number; loans: number };
+}
+
+interface CouponCode {
+  id: string;
+  code: string;
+  active: boolean;
+  timesRedeemed: number;
+  maxRedemptions: number | null;
+}
+
+interface Coupon {
+  id: string;
+  name: string | null;
+  percentOff: number | null;
+  amountOff: number | null;
+  currency: string | null;
+  duration: string;
+  durationInMonths: number | null;
+  valid: boolean;
+  codes: CouponCode[];
+}
+
+// Maps Stripe subscription statuses to a short PT label + tone for the admin badges.
+const SUB_STATUS: Record<string, { label: string; tone: string }> = {
+  active: { label: 'Ativo', tone: 'bg-neon-dim text-neon' },
+  trialing: { label: 'Em teste', tone: 'bg-warning/10 text-warning' },
+  past_due: { label: 'Atrasado', tone: 'bg-danger/10 text-danger' },
+  canceled: { label: 'Cancelado', tone: 'bg-surface-elevated text-muted-foreground' },
+  unpaid: { label: 'Não pago', tone: 'bg-danger/10 text-danger' },
+  INACTIVE: { label: 'Sem assinatura', tone: 'bg-surface-elevated text-muted-foreground' },
+};
+
+function subBadge(status: string | null) {
+  return SUB_STATUS[status || 'INACTIVE'] ?? { label: status || 'Sem assinatura', tone: 'bg-surface-elevated text-muted-foreground' };
+}
+
+function couponLabel(c: Coupon): string {
+  const off = c.percentOff ? `${c.percentOff}% off` : c.amountOff ? `R$ ${(c.amountOff / 100).toFixed(2)} off` : 'desconto';
+  const dur = c.duration === 'repeating' ? ` por ${c.durationInMonths} mês(es)` : c.duration === 'forever' ? ' (recorrente)' : ' (1x)';
+  return `${off}${dur}`;
 }
 
 export function AdminView() {
@@ -79,6 +125,84 @@ export function AdminView() {
     }
   };
 
+  // ---- Assinatura / trial / cupons (somente super admin) ----
+  const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [couponForm, setCouponForm] = useState({ name: '', percentOff: '', months: '', code: '', maxRedemptions: '' });
+  const [creatingCoupon, setCreatingCoupon] = useState(false);
+  const [applyFor, setApplyFor] = useState<ManagedUser | null>(null);
+  const [selectedCouponId, setSelectedCouponId] = useState('');
+  const [applying, setApplying] = useState(false);
+
+  const fetchCoupons = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/billing/coupons');
+      if (res.ok) setCoupons(await res.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    const timer = setTimeout(() => { fetchCoupons(); }, 0);
+    return () => clearTimeout(timer);
+  }, [isSuperAdmin, fetchCoupons]);
+
+  const handleResetTrial = async (u: ManagedUser) => {
+    if (!confirm(`Liberar um novo teste grátis de 7 dias para ${u.name}?`)) return;
+    try {
+      const res = await apiPost(`/api/admin/billing/users/${u.id}/reset-trial`, {});
+      const errMsg = await getApiError(res);
+      if (errMsg) { toast.error(errMsg); return; }
+      toast.success('Teste grátis liberado novamente.');
+      fetchUsers();
+    } catch {
+      toast.error('Erro de conexão com o servidor');
+    }
+  };
+
+  const handleCreateCoupon = async () => {
+    const percentOff = couponForm.percentOff ? Number(couponForm.percentOff) : undefined;
+    const months = couponForm.months ? Number(couponForm.months) : undefined;
+    const maxRedemptions = couponForm.maxRedemptions ? Number(couponForm.maxRedemptions) : undefined;
+    if (!percentOff) { toast.error('Informe o percentual de desconto (1 a 100).'); return; }
+    setCreatingCoupon(true);
+    try {
+      const res = await apiPost('/api/admin/billing/coupons', {
+        name: couponForm.name || undefined,
+        percentOff,
+        months,
+        code: couponForm.code || undefined,
+        maxRedemptions,
+      });
+      const errMsg = await getApiError(res);
+      if (errMsg) { toast.error(errMsg); return; }
+      toast.success('Cupom criado!');
+      setCouponForm({ name: '', percentOff: '', months: '', code: '', maxRedemptions: '' });
+      fetchCoupons();
+    } catch {
+      toast.error('Erro de conexão com o servidor');
+    } finally {
+      setCreatingCoupon(false);
+    }
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!applyFor || !selectedCouponId) return;
+    setApplying(true);
+    try {
+      const res = await apiPost(`/api/admin/billing/users/${applyFor.id}/apply-coupon`, { couponId: selectedCouponId });
+      const errMsg = await getApiError(res);
+      if (errMsg) { toast.error(errMsg); return; }
+      toast.success(`Cupom aplicado para ${applyFor.name}.`);
+      setApplyFor(null);
+      setSelectedCouponId('');
+    } catch {
+      toast.error('Erro de conexão com o servidor');
+    } finally {
+      setApplying(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-6">
       <div className="flex items-center justify-between">
@@ -97,6 +221,50 @@ export function AdminView() {
           <span className="hidden sm:inline">Novo</span>
         </button>
       </div>
+
+      {isSuperAdmin && (
+        <div className="bg-surface rounded-2xl p-4 border border-border space-y-4">
+          <div className="flex items-center gap-2">
+            <Ticket className="w-4 h-4 text-neon" />
+            <h3 className="text-sm font-bold text-foreground">Cupons de desconto</h3>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Crie um cupom (ex.: <strong className="text-foreground">100% por 12 meses = 1 ano grátis</strong>). Preencha um <strong className="text-foreground">código</strong> para enviar ao cliente digitar no checkout, ou deixe em branco e <strong className="text-foreground">aplique direto</strong> num usuário na lista abaixo.
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <Input value={couponForm.name} onChange={(e) => setCouponForm({ ...couponForm, name: e.target.value })} placeholder="Nome (opcional)" className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-10 text-sm" />
+            <Input value={couponForm.percentOff} onChange={(e) => setCouponForm({ ...couponForm, percentOff: e.target.value })} type="number" placeholder="% desconto (1-100)" className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-10 text-sm" />
+            <Input value={couponForm.months} onChange={(e) => setCouponForm({ ...couponForm, months: e.target.value })} type="number" placeholder="Meses (vazio = 1x)" className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-10 text-sm" />
+            <Input value={couponForm.code} onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value })} placeholder="Código p/ enviar (opcional)" className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-10 text-sm" />
+            <Input value={couponForm.maxRedemptions} onChange={(e) => setCouponForm({ ...couponForm, maxRedemptions: e.target.value })} type="number" placeholder="Usos máx. (opcional)" className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-10 text-sm" />
+            <Button onClick={handleCreateCoupon} disabled={creatingCoupon} className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl h-10 text-sm">
+              {creatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Criar cupom</>}
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {coupons.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum cupom criado ainda.</p>
+            ) : (
+              coupons.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-2 p-2.5 bg-surface-elevated rounded-lg text-xs">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground truncate">{c.name || c.id}</p>
+                    <p className="text-muted-foreground">{couponLabel(c)}</p>
+                    {c.codes.length > 0 && (
+                      <p className="text-neon font-mono mt-0.5">
+                        {c.codes.map((cc) => `${cc.code}${cc.maxRedemptions ? ` (${cc.timesRedeemed}/${cc.maxRedemptions})` : ''}`).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  {!c.valid && <span className="text-danger shrink-0">expirado</span>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -129,9 +297,19 @@ export function AdminView() {
                   <p className="text-xs text-muted-foreground/60">
                     {u._count.loans} empréstimos · {u._count.borrowers} devedores
                   </p>
+                  {u.role === 'CLIENT' && (
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${subBadge(u.subscriptionStatus).tone}`}>
+                        {subBadge(u.subscriptionStatus).label}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${u.trialUsedAt ? 'bg-surface-elevated text-muted-foreground' : 'bg-neon-dim text-neon'}`}>
+                        {u.trialUsedAt ? 'Trial usado' : 'Trial disponível'}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1 shrink-0">
-                  {u.email !== 'brunoantunes94@hotmail.com' && (
+                  {u.email !== SUPER_ADMIN_EMAIL && (
                     <>
                       <button
                         onClick={() => router.push(`/admin/users/${u.id}`)}
@@ -140,6 +318,24 @@ export function AdminView() {
                       >
                         <ChevronRight className="w-4 h-4 text-neon" />
                       </button>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => { setApplyFor(u); setSelectedCouponId(''); }}
+                          className="w-8 h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
+                          title="Aplicar cupom"
+                        >
+                          <Gift className="w-3.5 h-3.5 text-neon" />
+                        </button>
+                      )}
+                      {isSuperAdmin && u.trialUsedAt && (
+                        <button
+                          onClick={() => handleResetTrial(u)}
+                          className="w-8 h-8 rounded-lg bg-secondary hover:bg-warning/10 flex items-center justify-center transition-colors"
+                          title="Liberar novo teste grátis"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-warning" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeactivate(u.id)}
                         className="w-8 h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
@@ -195,6 +391,44 @@ export function AdminView() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)} className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1">Cancelar</Button>
             <Button onClick={handleCreate} disabled={submitting || !form.email || !form.name || !form.password} className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1">
               {submitting ? 'Criando...' : 'Criar Usuário'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply Coupon Dialog */}
+      <Dialog open={!!applyFor} onOpenChange={(open) => { if (!open) { setApplyFor(null); setSelectedCouponId(''); } }}>
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Gift className="w-5 h-5 text-neon" />
+              Aplicar cupom
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Aplica um desconto direto na conta de <strong className="text-foreground">{applyFor?.name}</strong>. Ele não precisa digitar código nenhum.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Select value={selectedCouponId} onValueChange={setSelectedCouponId}>
+              <SelectTrigger className="bg-surface-elevated border-border text-foreground rounded-xl h-11">
+                <SelectValue placeholder="Escolha um cupom" />
+              </SelectTrigger>
+              <SelectContent className="bg-surface-elevated border-border">
+                {coupons.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-foreground">
+                    {(c.name || c.id)} — {couponLabel(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Se o usuário já tem assinatura, o desconto entra na assinatura atual. Se ainda não assinou, fica guardado na conta e aplica na próxima assinatura.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="secondary" onClick={() => { setApplyFor(null); setSelectedCouponId(''); }} className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1">Cancelar</Button>
+            <Button onClick={handleApplyCoupon} disabled={applying || !selectedCouponId} className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1">
+              {applying ? 'Aplicando...' : 'Aplicar cupom'}
             </Button>
           </DialogFooter>
         </DialogContent>
