@@ -2,12 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrency, formatDateShort, getDaysUntil, getDaysLabel, generateWhatsAppLink, generateChargeMessage, getStatusLabel, getStatusBgColor, formatPhone } from '@/lib/helpers';
+import { formatCurrency, formatDateShort, getDaysUntil, getDaysLabel, formatPhone } from '@/lib/helpers';
 import { useAppStore } from '@/lib/store';
 import { useDashboard } from '@/features/dashboard/use-dashboard';
 import { useInvalidateLoans } from '@/features/loans/use-loans';
-import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, MessageCircle, DollarSign, Plus, UserPlus } from 'lucide-react';
+import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, DollarSign, Plus, UserPlus } from 'lucide-react';
+import { ActionButton } from '@/components/ui/action-button';
+import { ChargeButton } from './ChargeButton';
 import { CreateLoanDialog } from './CreateLoanDialog';
+import { Spinner } from '@/components/ui/spinner';
+import { StatusBadge } from './StatusBadge';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function DashboardView() {
   const [loanDialogOpen, setLoanDialogOpen] = useState(false);
@@ -19,22 +24,14 @@ export function DashboardView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
+        <Spinner />
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center py-12 space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-surface-elevated flex items-center justify-center mx-auto">
-          <Wallet className="w-8 h-8 text-muted-foreground" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">Erro ao carregar dados</p>
-          <p className="text-xs text-muted-foreground mt-1">Tente recarregar a página</p>
-        </div>
-      </div>
+      <EmptyState icon={Wallet} title="Erro ao carregar dados" description="Tente recarregar a página" />
     );
   }
 
@@ -127,8 +124,6 @@ export function DashboardView() {
               <div className="space-y-2">
                 {data.overdueInstallments.map((inst) => {
                   const days = getDaysUntil(inst.dueDate);
-                  const message = generateChargeMessage(inst.borrowerName, inst.amount, inst.dueDate);
-                  const waLink = generateWhatsAppLink(inst.borrowerWhatsapp, message);
                   return (
                     <div
                       key={inst.id}
@@ -139,21 +134,17 @@ export function DashboardView() {
                           <p className="text-sm font-semibold text-foreground truncate">{inst.borrowerName}</p>
                           <p className="text-xs text-danger font-medium">{getDaysLabel(days)}</p>
                         </div>
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-danger/10 text-danger border-danger/20 font-medium whitespace-nowrap ml-2">
-                          {getStatusLabel(inst.status)}
-                        </span>
+                        <StatusBadge status={inst.status} className="ml-2" />
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-base font-bold text-foreground">{formatCurrency(inst.amount)}</p>
-                        <a
-                          href={waLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-whatsapp/10 hover:bg-whatsapp/20 text-whatsapp rounded-lg text-xs font-medium transition-colors"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          Cobrar
-                        </a>
+                        <ChargeButton
+                          installmentId={inst.id}
+                          borrowerName={inst.borrowerName}
+                          borrowerWhatsapp={inst.borrowerWhatsapp}
+                          amount={inst.amount}
+                          dueDate={inst.dueDate}
+                        />
                       </div>
                     </div>
                   );
@@ -172,8 +163,6 @@ export function DashboardView() {
               <div className="space-y-2">
                 {data.upcomingInstallments.map((inst) => {
                   const days = getDaysUntil(inst.dueDate);
-                  const message = generateChargeMessage(inst.borrowerName, inst.amount, inst.dueDate);
-                  const waLink = generateWhatsAppLink(inst.borrowerWhatsapp, message);
                   return (
                     <div
                       key={inst.id}
@@ -185,22 +174,17 @@ export function DashboardView() {
                           <p className="text-sm font-semibold text-foreground truncate">{inst.borrowerName}</p>
                           <p className="text-xs text-muted-foreground">{getDaysLabel(days)} · {formatDateShort(inst.dueDate)}</p>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ml-2 ${getStatusBgColor(inst.status)}`}>
-                          {getStatusLabel(inst.status)}
-                        </span>
+                        <StatusBadge status={inst.status} className="ml-2" />
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-base font-bold text-foreground">{formatCurrency(inst.amount)}</p>
-                        <a
-                          href={waLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-whatsapp/10 hover:bg-whatsapp/20 text-whatsapp rounded-lg text-xs font-medium transition-colors"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          Cobrar
-                        </a>
+                        <ChargeButton
+                          installmentId={inst.id}
+                          borrowerName={inst.borrowerName}
+                          borrowerWhatsapp={inst.borrowerWhatsapp}
+                          amount={inst.amount}
+                          dueDate={inst.dueDate}
+                        />
                       </div>
                     </div>
                   );
@@ -216,12 +200,9 @@ export function DashboardView() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">Empréstimos Recentes</h3>
-                <button
-                  onClick={() => router.push('/loans')}
-                  className="flex items-center gap-1 text-xs text-neon hover:underline cursor-pointer"
-                >
-                  Ver todos <ArrowRight className="w-3 h-3" />
-                </button>
+                <ActionButton onClick={() => router.push('/loans')}>
+                  Ver todos <ArrowRight className="w-3.5 h-3.5" />
+                </ActionButton>
               </div>
               <div className="space-y-2">
                 {data.recentLoans.map((loan) => (
@@ -255,31 +236,29 @@ export function DashboardView() {
 
       {/* Empty State */}
       {data.totalMonthly === 0 && data.overdueInstallments.length === 0 && data.recentLoans.length === 0 && (
-        <div className="text-center py-12 space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-surface-elevated flex items-center justify-center mx-auto">
-            <Wallet className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">Nenhum empréstimo cadastrado</p>
-            <p className="text-xs text-muted-foreground mt-1">Crie seu primeiro empréstimo para começar</p>
-          </div>
-          <div className="flex flex-col items-center gap-2 pt-1">
-            <button
-              onClick={() => setLoanDialogOpen(true)}
-              className="inline-flex items-center gap-2 px-5 h-11 bg-neon text-background rounded-xl font-semibold text-sm hover:bg-neon/90 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Criar Empréstimo
-            </button>
-            <button
-              onClick={() => router.push('/borrowers')}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              ou cadastrar um cliente primeiro
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon={Wallet}
+          title="Nenhum empréstimo cadastrado"
+          description="Crie seu primeiro empréstimo para começar"
+          action={
+            <>
+              <button
+                onClick={() => setLoanDialogOpen(true)}
+                className="inline-flex items-center gap-2 px-5 h-11 bg-neon text-background rounded-xl font-semibold text-sm hover:bg-neon/90 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Criar Empréstimo
+              </button>
+              <button
+                onClick={() => router.push('/borrowers')}
+                className="inline-flex items-center gap-1.5 h-9 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                ou cadastrar um cliente primeiro
+              </button>
+            </>
+          }
+        />
       )}
 
       <CreateLoanDialog

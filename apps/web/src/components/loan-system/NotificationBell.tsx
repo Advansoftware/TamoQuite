@@ -6,6 +6,7 @@ import { useAppStore } from '@/lib/store';
 import { formatDate } from '@/lib/helpers';
 import { toast } from 'sonner';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { ActionButton, IconButton } from '@/components/ui/action-button';
 import { useSubscription, useOpenBillingPortal, useUpdateNotifyDays } from '@/features/subscription/use-subscription';
 
 type Tone = 'warning' | 'danger' | 'info';
@@ -139,21 +140,14 @@ export function NotificationBell() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-foreground">{n.title}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
-                  <button
-                    onClick={openPortal}
-                    className="text-[11px] text-neon font-medium mt-1.5 inline-flex items-center gap-1 hover:underline cursor-pointer"
-                  >
-                    <CreditCard className="w-3 h-3" />
+                  <ActionButton onClick={openPortal} className="mt-1.5 h-9 sm:h-8 px-2.5">
+                    <CreditCard className="w-3.5 h-3.5" />
                     Gerenciar assinatura
-                  </button>
+                  </ActionButton>
                 </div>
-                <button
-                  onClick={() => dismiss(n.id)}
-                  className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                  title="Dispensar"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                <IconButton onClick={() => dismiss(n.id)} title="Dispensar" aria-label="Dispensar" className="-mr-1.5 -mt-1.5">
+                  <X className="w-4 h-4" />
+                </IconButton>
               </div>
             ))
           )}

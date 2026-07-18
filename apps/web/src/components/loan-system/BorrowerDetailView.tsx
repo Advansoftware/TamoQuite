@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ActionButton } from '@/components/ui/action-button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -20,6 +21,9 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { CreateLoanDialog } from './CreateLoanDialog';
+import { Spinner } from '@/components/ui/spinner';
+import { EmptyState } from '@/components/ui/empty-state';
+import { StatTile } from '@/components/ui/stat-tile';
 
 export function BorrowerDetailView() {
   const params = useParams();
@@ -41,7 +45,7 @@ export function BorrowerDetailView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
+        <Spinner />
       </div>
     );
   }
@@ -142,22 +146,10 @@ export function BorrowerDetailView() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="bg-surface rounded-xl p-3 border border-border text-center">
-          <p className="text-[10px] text-muted-foreground mb-0.5">Total Emprestado</p>
-          <p className="text-xs font-bold text-foreground truncate">{formatCurrency(totalLent)}</p>
-        </div>
-        <div className="bg-surface rounded-xl p-3 border border-border text-center">
-          <p className="text-[10px] text-muted-foreground mb-0.5">Total Recebido</p>
-          <p className="text-xs font-bold text-neon truncate">{formatCurrency(totalReceived)}</p>
-        </div>
-        <div className="bg-surface rounded-xl p-3 border border-border text-center">
-          <p className="text-[10px] text-muted-foreground mb-0.5">Saldo Devedor</p>
-          <p className="text-xs font-bold text-warning truncate">{formatCurrency(totalRemaining)}</p>
-        </div>
-        <div className="bg-surface rounded-xl p-3 border border-border text-center">
-          <p className="text-[10px] text-muted-foreground mb-0.5">Saldo em Atraso</p>
-          <p className="text-xs font-bold text-danger truncate">{formatCurrency(totalOverdue)}</p>
-        </div>
+        <StatTile label="Total Emprestado" value={formatCurrency(totalLent)} />
+        <StatTile label="Total Recebido" value={formatCurrency(totalReceived)} tone="neon" />
+        <StatTile label="Saldo Devedor" value={formatCurrency(totalRemaining)} tone="warning" />
+        <StatTile label="Saldo em Atraso" value={formatCurrency(totalOverdue)} tone="danger" />
       </div>
 
       {/* Cobrança Consolidada */}
@@ -247,22 +239,24 @@ export function BorrowerDetailView() {
             <FileText className="w-4 h-4 text-neon" />
             Contratos ({borrower.loans.length})
           </h3>
-          <button
-            onClick={() => {
-              setCreateLoanOpen(true);
-            }}
-            className="flex items-center gap-1 text-xs text-neon font-medium hover:underline cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          <ActionButton onClick={() => setCreateLoanOpen(true)}>
+            <Plus className="w-4 h-4" />
             Novo
-          </button>
+          </ActionButton>
         </div>
 
         {borrower.loans.length === 0 ? (
-          <div className="text-center py-8 space-y-2">
-            <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto" />
-            <p className="text-sm text-muted-foreground">Nenhum contrato ativo</p>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="Nenhum contrato ativo"
+            className="py-8"
+            action={
+              <ActionButton onClick={() => setCreateLoanOpen(true)} className="px-4">
+                <Plus className="w-4 h-4" />
+                Criar primeiro contrato
+              </ActionButton>
+            }
+          />
         ) : (
           <div className="space-y-2">
             {borrower.loans.map((loan, index) => {

@@ -10,15 +10,10 @@ import {
   formatDate,
   getDaysUntil,
   getDaysLabel,
-  getStatusLabel,
-  getStatusBgColor,
   formatPhone,
   formatRate,
-  generateWhatsAppLink,
-  generateChargeMessage,
 } from '@/lib/helpers';
 import {
-  MessageCircle,
   CheckCircle2,
   DollarSign,
   Percent,
@@ -28,19 +23,16 @@ import {
   Undo2,
   ArrowLeft,
   ChevronDown,
-  Send,
 } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ActionButton } from '@/components/ui/action-button';
+import { ChargeButton } from './ChargeButton';
+import { Spinner } from '@/components/ui/spinner';
+import { StatusBadge } from './StatusBadge';
 
 interface Installment {
   id: string;
@@ -122,7 +114,6 @@ export function LoanDetailView() {
   const [undoRollOpen, setUndoRollOpen] = useState(false);
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
   const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
-  const [sendingChargeId, setSendingChargeId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['loan', selectedLoanId],
@@ -205,25 +196,12 @@ export function LoanDetailView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const sendChargeMutation = useMutation({
-    mutationFn: async (installmentId: string) => {
-      const res = await apiPost(`/api/settings/billing/charge/${installmentId}`, {});
-      const errMsg = await getApiError(res);
-      if (errMsg) throw new Error(errMsg);
-      return res.json();
-    },
-    onMutate: (installmentId: string) => setSendingChargeId(installmentId),
-    onSuccess: () => toast.success('Cobrança enviada!'),
-    onError: (e: Error) => toast.error(e.message),
-    onSettled: () => setSendingChargeId(null),
-  });
-
   const anySubmitting = payFullMutation.isPending || payPartialMutation.isPending || payInterestMutation.isPending || rollRemainingMutation.isPending || undoPaymentMutation.isPending;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
+        <Spinner />
       </div>
     );
   }
@@ -324,8 +302,6 @@ export function LoanDetailView() {
         <div className="space-y-2">
           {loan.installments.map((inst) => {
             const days = getDaysUntil(inst.dueDate);
-            const message = generateChargeMessage(loan.borrower.name, inst.amount, inst.dueDate);
-            const waLink = generateWhatsAppLink(loan.borrower.whatsapp, message);
             const remaining = inst.amount - (inst.paidAmount || 0);
 
             return (
@@ -363,9 +339,7 @@ export function LoanDetailView() {
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${getStatusBgColor(inst.status)}`}>
-                    {getStatusLabel(inst.status)}
-                  </span>
+                  <StatusBadge status={inst.status} />
                 </div>
 
                 {/* Partial payment collapse */}
@@ -449,42 +423,14 @@ export function LoanDetailView() {
                         <DollarSign className="w-3.5 h-3.5" />
                         Pagamento Parcial
                       </button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            disabled={sendingChargeId === inst.id}
-                            className="flex items-center justify-center w-10 h-10 bg-whatsapp/10 hover:bg-whatsapp/20 text-whatsapp rounded-xl transition-colors shrink-0 disabled:opacity-60 cursor-pointer outline-none"
-                            title="Cobrar via WhatsApp"
-                          >
-                            {sendingChargeId === inst.id ? (
-                              <span className="w-4 h-4 border-2 border-whatsapp/30 border-t-whatsapp rounded-full animate-spin" />
-                            ) : (
-                              <MessageCircle className="w-4 h-4" />
-                            )}
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-surface border-border text-foreground w-64">
-                          <DropdownMenuItem
-                            onClick={() => sendChargeMutation.mutate(inst.id)}
-                            className="cursor-pointer focus:bg-secondary/40 flex-col items-start gap-0.5 py-2"
-                          >
-                            <span className="flex items-center gap-2 font-medium">
-                              <Send className="w-4 h-4 text-neon" />
-                              O sistema cobra por mim
-                            </span>
-                            <span className="text-[11px] text-muted-foreground pl-6">Envia a mensagem agora, automático.</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild className="cursor-pointer focus:bg-secondary/40">
-                            <a href={waLink} target="_blank" rel="noopener noreferrer" className="flex-col items-start gap-0.5 py-2">
-                              <span className="flex items-center gap-2 font-medium">
-                                <MessageCircle className="w-4 h-4 text-whatsapp" />
-                                Eu mesmo envio
-                              </span>
-                              <span className="text-[11px] text-muted-foreground pl-6">Abre o WhatsApp com a mensagem pronta.</span>
-                            </a>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <ChargeButton
+                        variant="icon"
+                        installmentId={inst.id}
+                        borrowerName={loan.borrower.name}
+                        borrowerWhatsapp={loan.borrower.whatsapp}
+                        amount={inst.amount}
+                        dueDate={inst.dueDate}
+                      />
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -522,16 +468,16 @@ export function LoanDetailView() {
                       <CheckCircle2 className="w-3.5 h-3.5 text-neon" />
                       {inst.paidAt ? `Pago em ${formatDate(inst.paidAt)}` : 'Pago'}
                     </div>
-                    <button
+                    <ActionButton
+                      tone="danger"
                       onClick={() => {
                         setSelectedInstallment(inst);
                         setUndoRollOpen(true);
                       }}
-                      className="text-xs text-danger hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      <Undo2 className="w-3 h-3" />
+                      <Undo2 className="w-3.5 h-3.5" />
                       Desfazer Pagamento
-                    </button>
+                    </ActionButton>
                   </div>
                 )}
               </div>

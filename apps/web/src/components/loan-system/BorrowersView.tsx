@@ -12,6 +12,8 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { useBorrowers, useCreateBorrower, useUpdateBorrower, useDeleteBorrower } from '@/features/borrowers/use-borrowers';
 import type { Borrower } from '@/features/borrowers/types';
+import { Spinner } from '@/components/ui/spinner';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function BorrowersView() {
   const [search, setSearch] = useState('');
@@ -110,17 +112,10 @@ export function BorrowersView() {
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
+          <Spinner />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-surface-elevated flex items-center justify-center mx-auto">
-            <User className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {search ? 'Nenhum resultado encontrado' : 'Nenhum cliente cadastrado ainda'}
-          </p>
-        </div>
+        <EmptyState icon={User} title={search ? 'Nenhum resultado encontrado' : 'Nenhum cliente cadastrado ainda'} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((b) => {

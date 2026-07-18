@@ -26,6 +26,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Spinner } from '@/components/ui/spinner';
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -781,7 +782,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                     <p className="text-xs text-muted-foreground max-w-xs mx-auto">Sua conta foi criada e sua assinatura está ativa. Redirecionando você para o painel administrativo...</p>
                   </div>
 
-                  <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin mx-auto" />
+                  <Spinner className="mx-auto" />
                 </div>
               )}
 

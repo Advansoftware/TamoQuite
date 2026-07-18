@@ -17,6 +17,7 @@ import {
   useCoupons, useCreateCoupon, useApplyCoupon,
 } from '@/features/admin/use-admin';
 import type { Coupon, ManagedUser } from '@/features/admin/types';
+import { Spinner } from '@/components/ui/spinner';
 
 const SUPER_ADMIN_EMAIL = 'brunoantunes94@hotmail.com';
 
@@ -192,7 +193,7 @@ export function AdminView() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" />
+          <Spinner />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -368,7 +369,7 @@ export function AdminUserDashboardView() {
   const userInfo = users?.find((u) => u.id === adminSelectedUserId) ?? null;
 
   if (loading) {
-    return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" /></div>;
+    return <div className="flex justify-center py-12"><Spinner /></div>;
   }
 
   if (!userInfo) {

@@ -14,6 +14,8 @@ import { useLoans, useDeleteLoan, useInvalidateLoans } from '@/features/loans/us
 import type { LoanListItem as Loan } from '@/features/loans/types';
 
 import { CreateLoanDialog } from './CreateLoanDialog';
+import { Spinner } from '@/components/ui/spinner';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function LoansView() {
   const [search, setSearch] = useState('');
@@ -100,14 +102,9 @@ export function LoansView() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-surface-elevated flex items-center justify-center mx-auto">
-            <FileText className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground">{search ? 'Nenhum resultado' : 'Nenhum empréstimo cadastrado'}</p>
-        </div>
+        <EmptyState icon={FileText} title={search ? 'Nenhum resultado' : 'Nenhum empréstimo cadastrado'} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((loan) => {
