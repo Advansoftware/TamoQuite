@@ -1,11 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api');
+
+  // Validate/coerce DTOs that use class-validator; strips unknown props.
+  // Endpoints still typed with plain interfaces are unaffected.
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true, transformOptions: { enableImplicitConversion: true } }),
+  );
 
   const webOrigin = process.env.WEB_ORIGIN;
   app.enableCors({
