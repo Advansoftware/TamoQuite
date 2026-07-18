@@ -15,6 +15,7 @@ import { SubscriptionGuard } from '../common/subscription.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { addPeriods, normalizeFrequency, parseDateOnly } from '../common/period.util';
+import { computeLoanTotals } from './loan-math';
 
 @UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('loans')
@@ -58,12 +59,12 @@ export class LoansController {
     const borrower = await this.prisma.borrower.findFirst({ where: { id: borrowerId, userId } });
     if (!borrower) throw new NotFoundException('Devedor não encontrado');
 
-    // Simple interest on the original principal: total interest = P × rate × nº periods.
-    // (e.g. R$200 at 5%/month for 2 months = R$20 interest → R$220 total.) This matches
-    // informal lending and the "pay only interest" action. 0% → total equals the principal.
-    const periodRate = interestRate / 100;
-    const totalAmount = originalAmount * (1 + periodRate * installmentCount);
-    const installmentValue = totalAmount / installmentCount;
+    // Simple interest on the original principal (see loan-math.ts).
+    const { totalAmount, installmentValue } = computeLoanTotals(
+      originalAmount,
+      interestRate,
+      installmentCount,
+    );
 
     // The date the user enters IS the first installment's due date; subsequent
     // installments fall one period after each other.
@@ -78,7 +79,7 @@ export class LoansController {
       installmentsData.push({
         installmentNumber: i,
         dueDate: addPeriods(start, frequency, i - 1),
-        amount: Math.round(installmentValue * 100) / 100,
+        amount: installmentValue,
         status: 'PENDING',
       });
     }
@@ -89,7 +90,7 @@ export class LoansController {
         borrowerId,
         originalAmount,
         interestRate,
-        totalAmount: Math.round(totalAmount * 100) / 100,
+        totalAmount,
         installmentCount,
         startDate: parseDateOnly(startDate),
         paymentFrequency: frequency,
