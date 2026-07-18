@@ -1,7 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiFetch, apiPost, apiPut, getApiError } from '@/lib/api';
+import { qk } from '@/lib/query-keys';
+import {
+  useBillingSettings,
+  useUpdateBillingSettings,
+} from '@/features/settings/use-billing-settings';
+import {
+  useWhatsappStatus,
+  useConnectWhatsapp,
+  useDisconnectWhatsapp,
+} from '@/features/settings/use-whatsapp';
+import type { BillingSettings, WhatsappMode, WhatsappStatus } from '@/features/settings/types';
 import { useAppStore } from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -11,25 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Smartphone, MessageSquare, Loader2, CheckCircle2, XCircle, QrCode, CreditCard, Calendar, ExternalLink, AlertTriangle, Shield, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-
-type WhatsappStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
-
-type WhatsappMode = 'MANUAL' | 'OWN' | 'GLOBAL';
-
-interface BillingSettings {
-  whatsappMode: WhatsappMode;
-  contactPhone: string | null;
-  remindBeforeEnabled: boolean;
-  daysBefore: number;
-  sendOnDueDate: boolean;
-  overdueEnabled: boolean;
-  overdueIntervalDays: number;
-  maxOverdueMessages: number;
-  sendHour: number;
-  reminderTemplate: string;
-  dueTemplate: string;
-  overdueTemplate: string;
-}
 
 const PLACEHOLDER_HINT =
   'Variáveis: {{nome}}, {{valor}}, {{vencimento}}, {{parcela}}, {{total}}, {{credor}}, {{telefone_credor}}';
@@ -41,41 +34,47 @@ const MODE_OPTIONS: { value: WhatsappMode; label: string; desc: string }[] = [
 ];
 
 function WhatsappTab() {
-  const [status, setStatus] = useState<WhatsappStatus>('DISCONNECTED');
+  const qc = useQueryClient();
+  const { data: settings } = useBillingSettings();
+  const updateSettings = useUpdateBillingSettings();
+  const mode = settings?.whatsappMode ?? 'OWN';
+
+  const [polling, setPolling] = useState(false);
+  const { data: statusData } = useWhatsappStatus(polling);
+  const status = statusData?.status ?? 'DISCONNECTED';
+  const connect = useConnectWhatsapp();
+  const disconnect = useDisconnectWhatsapp();
+  const loading = connect.isPending || disconnect.isPending;
+
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<WhatsappMode>('OWN');
   const [contactPhone, setContactPhone] = useState('');
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Mirror the saved creditor contact into the editable field once settings load.
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiFetch('/api/settings/billing');
-        if (res.ok) {
-          const s = await res.json();
-          setMode(s.whatsappMode ?? 'OWN');
-          setContactPhone(s.contactPhone ?? '');
-        }
-      } catch { /* ignore */ }
-    })();
-  }, []);
+    if (!settings) return;
+    const t = setTimeout(() => setContactPhone(settings.contactPhone ?? ''), 0);
+    return () => clearTimeout(t);
+  }, [settings]);
+
+  // Stop polling (and clear the QR) as soon as the connection reports CONNECTED.
+  useEffect(() => {
+    if (status !== 'CONNECTED' || !polling) return;
+    const t = setTimeout(() => {
+      setPolling(false);
+      setQrcode(null);
+      setPairingCode(null);
+      toast.success('WhatsApp conectado!');
+    }, 0);
+    return () => clearTimeout(t);
+  }, [status, polling]);
 
   const changeMode = async (value: WhatsappMode) => {
-    const prev = mode;
-    setMode(value);
     try {
-      const res = await apiPut('/api/settings/billing', { whatsappMode: value });
-      if (!res.ok) {
-        setMode(prev);
-        toast.error((await getApiError(res)) || 'Erro ao salvar');
-        return;
-      }
+      await updateSettings.mutateAsync({ whatsappMode: value });
       toast.success('Modo de cobrança atualizado');
-    } catch {
-      setMode(prev);
-      toast.error('Erro de conexão');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
     }
   };
 
@@ -84,76 +83,31 @@ function WhatsappTab() {
     setContactPhone(val);
     if (contactTimer.current) clearTimeout(contactTimer.current);
     contactTimer.current = setTimeout(() => {
-      apiPut('/api/settings/billing', { contactPhone: val });
+      updateSettings.mutate({ contactPhone: val });
     }, 700);
   };
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/whatsapp/status');
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data.status);
-        if (data.status === 'CONNECTED') {
-          setQrcode(null);
-          setPairingCode(null);
-        }
-        return data.status as WhatsappStatus;
-      }
-    } catch { /* ignore */ }
-    return null;
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [fetchStatus]);
-
-  const startPolling = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      const s = await fetchStatus();
-      if (s === 'CONNECTED' && pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-        toast.success('WhatsApp conectado!');
-      }
-    }, 3000);
-  };
-
   const handleConnect = async () => {
-    setLoading(true);
     try {
-      const res = await apiPost('/api/whatsapp/connect', {});
-      if (!res.ok) {
-        toast.error((await getApiError(res)) || 'Erro ao conectar');
-        return;
-      }
-      const data = await res.json();
-      setStatus('CONNECTING');
+      const data = await connect.mutateAsync();
       setQrcode(data.qrcode || null);
       setPairingCode(data.pairingCode || null);
-      startPolling();
-    } catch {
-      toast.error('Erro de conexão');
-    } finally {
-      setLoading(false);
+      qc.setQueryData(qk.whatsappStatus, { status: 'CONNECTING' });
+      setPolling(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao conectar');
     }
   };
 
   const handleDisconnect = async () => {
-    setLoading(true);
     try {
-      await apiPost('/api/whatsapp/disconnect', {});
-      setStatus('DISCONNECTED');
+      await disconnect.mutateAsync();
       setQrcode(null);
       setPairingCode(null);
-      if (pollRef.current) clearInterval(pollRef.current);
+      setPolling(false);
       toast.success('WhatsApp desconectado');
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao desconectar');
     }
   };
 
@@ -218,7 +172,6 @@ function WhatsappTab() {
 
       {qrSrc && status !== 'CONNECTED' && (
         <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qrSrc} alt="QR code do WhatsApp" className="w-56 h-56" />
           <p className="text-xs text-black/60 text-center">
             Abra o WhatsApp → Aparelhos conectados → Conectar aparelho e escaneie.
@@ -290,42 +243,37 @@ function WhatsappTab() {
 }
 
 function BillingTab() {
-  const [settings, setSettings] = useState<BillingSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data: serverSettings, isLoading } = useBillingSettings();
+  const updateSettings = useUpdateBillingSettings();
+  const saving = updateSettings.isPending;
 
+  // Local draft so toggles/inputs feel instant; persisted on "Salvar".
+  const [draft, setDraft] = useState<BillingSettings | null>(null);
+  const settings = draft ?? serverSettings ?? null;
+
+  // Seed the draft once the server settings arrive.
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiFetch('/api/settings/billing');
-        if (res.ok) setSettings(await res.json());
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    if (!serverSettings) return;
+    const t = setTimeout(() => setDraft((d) => d ?? serverSettings), 0);
+    return () => clearTimeout(t);
+  }, [serverSettings]);
 
   const patch = (p: Partial<BillingSettings>) =>
-    setSettings((s) => (s ? { ...s, ...p } : s));
+    setDraft((s) => (s ? { ...s, ...p } : serverSettings ? { ...serverSettings, ...p } : s));
 
   const save = async () => {
     if (!settings) return;
-    setSaving(true);
     try {
       // Mode + creditor contact are owned by the WhatsApp tab; don't resend them here.
       const { whatsappMode: _mode, contactPhone: _contact, ...payload } = settings;
-      const res = await apiPut('/api/settings/billing', payload);
-      if (!res.ok) {
-        toast.error((await getApiError(res)) || 'Erro ao salvar');
-        return;
-      }
+      await updateSettings.mutateAsync(payload);
       toast.success('Configurações salvas!');
-    } finally {
-      setSaving(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
     }
   };
 
-  if (loading || !settings) {
+  if (isLoading || !settings) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-neon" />
@@ -785,7 +733,6 @@ function AdminGlobalTab() {
 
       {qr && (
         <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qr.src} alt="QR code" className="w-56 h-56" />
           <p className="text-xs text-black/60 text-center">
             WhatsApp → Aparelhos conectados → Conectar aparelho e escaneie.

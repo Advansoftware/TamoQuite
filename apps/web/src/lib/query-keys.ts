@@ -7,4 +7,6 @@ export const qk = {
   dashboard: ['dashboard'] as const,
   subscription: ['subscription'] as const,
   me: ['me'] as const,
+  billingSettings: ['settings', 'billing'] as const,
+  whatsappStatus: ['whatsapp', 'status'] as const,
 };
