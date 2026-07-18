@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiJson, apiDelete, resolveJson } from '@/lib/api';
+import { apiJson, apiPost, apiDelete, resolveJson } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
-import type { LoanListItem } from './types';
+import type { LoanInput, LoanListItem } from './types';
 
 export function useLoans() {
   return useQuery({
@@ -18,6 +18,14 @@ export function useInvalidateLoans() {
     qc.invalidateQueries({ queryKey: qk.dashboard });
     qc.invalidateQueries({ queryKey: qk.borrowers });
   };
+}
+
+export function useCreateLoan() {
+  const invalidate = useInvalidateLoans();
+  return useMutation({
+    mutationFn: (input: LoanInput) => apiPost('/api/loans', input).then((r) => resolveJson<LoanListItem>(r)),
+    onSuccess: invalidate,
+  });
 }
 
 export function useDeleteLoan() {

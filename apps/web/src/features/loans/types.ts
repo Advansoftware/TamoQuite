@@ -1,3 +1,12 @@
+export interface LoanInput {
+  borrowerId: string;
+  originalAmount: number;
+  interestRate: number;
+  installmentCount: number;
+  frequency: string;
+  startDate: string;
+}
+
 export interface LoanListItem {
   id: string;
   borrowerId: string;

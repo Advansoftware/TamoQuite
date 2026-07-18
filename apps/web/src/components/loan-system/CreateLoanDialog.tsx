@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { apiFetch, apiPost, getApiError } from '@/lib/api';
+import { useState, useEffect } from 'react';
 import { formatCurrency, formatPhone } from '@/lib/helpers';
+import { useBorrowers, useCreateBorrower } from '@/features/borrowers/use-borrowers';
+import { useCreateLoan } from '@/features/loans/use-loans';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,12 +14,6 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { calcFromRate, calcRateFromTotal, type CalcMode } from '@/features/loans/loan-math';
-
-interface BorrowerOption {
-  id: string;
-  name: string;
-  whatsapp: string;
-}
 
 interface CreateLoanDialogProps {
   open: boolean;
@@ -35,16 +30,20 @@ export function CreateLoanDialog({
   fixedBorrowerName,
   onSuccess,
 }: CreateLoanDialogProps) {
-  const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
-  const [loadingBorrowers, setLoadingBorrowers] = useState(false);
+  // Borrower list is only needed for the free (non-fixed) picker.
+  const { data: borrowersData, isLoading: loadingBorrowers } = useBorrowers();
+  const borrowers = fixedBorrowerId ? [] : borrowersData ?? [];
+  const createBorrower = useCreateBorrower();
+  const createLoan = useCreateLoan();
+
   const [borrowerOpen, setBorrowerOpen] = useState(false);
   const [borrowerSearch, setBorrowerSearch] = useState('');
   const [personDialogOpen, setPersonDialogOpen] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: '', whatsapp: '' });
-  const [creatingPerson, setCreatingPerson] = useState(false);
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
   const [singlePayment, setSinglePayment] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const submitting = createLoan.isPending;
+  const creatingPerson = createBorrower.isPending;
 
   const [form, setForm] = useState({
     borrowerId: '',
@@ -57,22 +56,6 @@ export function CreateLoanDialog({
     startDate: new Date().toISOString().split('T')[0],
   });
 
-  // Fetch borrowers list if not in fixed mode
-  const fetchBorrowers = useCallback(async () => {
-    if (fixedBorrowerId) return;
-    setLoadingBorrowers(true);
-    try {
-      const res = await apiFetch('/api/borrowers');
-      if (res.ok) {
-        setBorrowers(await res.json());
-      }
-    } catch (err) {
-      console.error('Erro ao buscar devedores:', err);
-    } finally {
-      setLoadingBorrowers(false);
-    }
-  }, [fixedBorrowerId]);
-
   const openCreatePerson = () => {
     setNewPerson({ name: borrowerSearch.trim(), whatsapp: '' });
     setBorrowerOpen(false);
@@ -84,49 +67,41 @@ export function CreateLoanDialog({
       toast.error('Nome e WhatsApp são obrigatórios');
       return;
     }
-    setCreatingPerson(true);
     try {
-      const res = await apiPost('/api/borrowers', {
+      const created = await createBorrower.mutateAsync({
         name: newPerson.name.trim(),
         whatsapp: newPerson.whatsapp.trim(),
       });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
-      const created = await res.json();
-      setBorrowers((prev) => (prev.some((b) => b.id === created.id) ? prev : [created, ...prev]));
       setForm((f) => ({ ...f, borrowerId: created.id }));
       setPersonDialogOpen(false);
       setNewPerson({ name: '', whatsapp: '' });
       setBorrowerSearch('');
       toast.success('Pessoa criada e selecionada!');
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setCreatingPerson(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro de conexão com o servidor');
     }
   };
 
+  // Reset form state whenever the dialog opens. Deferred a tick to avoid a
+  // synchronous setState cascade inside the effect body.
   useEffect(() => {
-    if (open) {
-      const timer = setTimeout(() => {
-        fetchBorrowers();
-        // Reset form state on dialog open
-        setForm({
-          borrowerId: fixedBorrowerId || '',
-          originalAmount: '',
-          interestRate: '',
-          totalAmount: '',
-          installmentValue: '',
-          installmentCount: '',
-          frequency: 'MONTHLY',
-          startDate: new Date().toISOString().split('T')[0],
-        });
-        setCalcMode('BY_RATE');
-        setSinglePayment(false);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [open, fixedBorrowerId, fetchBorrowers]);
+    if (!open) return;
+    const timer = setTimeout(() => {
+      setForm({
+        borrowerId: fixedBorrowerId || '',
+        originalAmount: '',
+        interestRate: '',
+        totalAmount: '',
+        installmentValue: '',
+        installmentCount: '',
+        frequency: 'MONTHLY',
+        startDate: new Date().toISOString().split('T')[0],
+      });
+      setCalcMode('BY_RATE');
+      setSinglePayment(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open, fixedBorrowerId]);
 
   // Calculations for preview
   const P = parseFloat(form.originalAmount) || 0;
@@ -188,9 +163,8 @@ export function CreateLoanDialog({
       return;
     }
 
-    setSubmitting(true);
     try {
-      const res = await apiPost('/api/loans', {
+      await createLoan.mutateAsync({
         borrowerId: activeBorrowerId,
         originalAmount: P,
         interestRate: finalRate,
@@ -198,21 +172,11 @@ export function CreateLoanDialog({
         frequency: form.frequency,
         startDate: form.startDate,
       });
-
-      const errMsg = await getApiError(res);
-      if (errMsg) {
-        toast.error(errMsg);
-        return;
-      }
-
       toast.success('Empréstimo criado com sucesso!');
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      console.error(err);
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+      toast.error(err instanceof Error ? err.message : 'Erro de conexão com o servidor');
     }
   };
 
