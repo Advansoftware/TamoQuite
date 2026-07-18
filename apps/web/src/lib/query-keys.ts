@@ -9,4 +9,6 @@ export const qk = {
   me: ['me'] as const,
   billingSettings: ['settings', 'billing'] as const,
   whatsappStatus: ['whatsapp', 'status'] as const,
+  adminUsers: ['admin', 'users'] as const,
+  adminCoupons: ['admin', 'coupons'] as const,
 };

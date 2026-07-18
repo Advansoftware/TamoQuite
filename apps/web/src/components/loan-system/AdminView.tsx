@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPost, apiDelete, getApiError } from '@/lib/api';
 import { formatDate } from '@/lib/helpers';
 import {
   Plus, UserPlus, Shield, Trash2, ChevronRight, Ticket, Gift, RotateCcw, Loader2,
@@ -13,42 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  useAdminUsers, useCreateUser, useDeactivateUser, useResetTrial,
+  useCoupons, useCreateCoupon, useApplyCoupon,
+} from '@/features/admin/use-admin';
+import type { Coupon, ManagedUser } from '@/features/admin/types';
 
 const SUPER_ADMIN_EMAIL = 'brunoantunes94@hotmail.com';
-
-interface ManagedUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  mustChangePassword: boolean;
-  createdAt: string;
-  subscriptionStatus: string | null;
-  trialUsedAt: string | null;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-  _count: { borrowers: number; loans: number };
-}
-
-interface CouponCode {
-  id: string;
-  code: string;
-  active: boolean;
-  timesRedeemed: number;
-  maxRedemptions: number | null;
-}
-
-interface Coupon {
-  id: string;
-  name: string | null;
-  percentOff: number | null;
-  amountOff: number | null;
-  currency: string | null;
-  duration: string;
-  durationInMonths: number | null;
-  valid: boolean;
-  codes: CouponCode[];
-}
 
 // Maps Stripe subscription statuses to a short PT label + tone for the admin badges.
 const SUB_STATUS: Record<string, { label: string; tone: string }> = {
@@ -73,90 +43,55 @@ function couponLabel(c: Coupon): string {
 export function AdminView() {
   const router = useRouter();
   const { user } = useAppStore();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loading } = useAdminUsers();
+  const createUser = useCreateUser();
+  const deactivateUser = useDeactivateUser();
+  const resetTrial = useResetTrial();
+  const submitting = createUser.isPending;
+
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ email: '', name: '', password: '', role: 'CLIENT' });
-  const [submitting, setSubmitting] = useState(false);
-
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/users');
-      if (res.ok) setUsers(await res.json());
-    } catch {}
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchUsers();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchUsers]);
 
   const handleCreate = async () => {
     if (!form.email || !form.name || !form.password) return;
-    setSubmitting(true);
     try {
-      const res = await apiPost('/api/auth/register', form);
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await createUser.mutateAsync(form);
       setCreateOpen(false);
       setForm({ email: '', name: '', password: '', role: 'CLIENT' });
       toast.success('Usuário criado com sucesso!');
-      fetchUsers();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
   const handleDeactivate = async (targetId: string) => {
     if (!confirm('Desativar este usuário?')) return;
     try {
-      const res = await apiDelete('/api/admin/users', { targetUserId: targetId });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await deactivateUser.mutateAsync(targetId);
       toast.success('Usuário desativado');
-      fetchUsers();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
   // ---- Assinatura / trial / cupons (somente super admin) ----
   const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const { data: coupons = [] } = useCoupons(isSuperAdmin);
+  const createCoupon = useCreateCoupon();
+  const applyCouponMut = useApplyCoupon();
+  const creatingCoupon = createCoupon.isPending;
+  const applying = applyCouponMut.isPending;
   const [couponForm, setCouponForm] = useState({ name: '', percentOff: '', months: '', code: '', maxRedemptions: '' });
-  const [creatingCoupon, setCreatingCoupon] = useState(false);
   const [applyFor, setApplyFor] = useState<ManagedUser | null>(null);
   const [selectedCouponId, setSelectedCouponId] = useState('');
-  const [applying, setApplying] = useState(false);
-
-  const fetchCoupons = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/billing/coupons');
-      if (res.ok) setCoupons(await res.json());
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const timer = setTimeout(() => { fetchCoupons(); }, 0);
-    return () => clearTimeout(timer);
-  }, [isSuperAdmin, fetchCoupons]);
 
   const handleResetTrial = async (u: ManagedUser) => {
     if (!confirm(`Liberar um novo teste grátis de 7 dias para ${u.name}?`)) return;
     try {
-      const res = await apiPost(`/api/admin/billing/users/${u.id}/reset-trial`, {});
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await resetTrial.mutateAsync(u.id);
       toast.success('Teste grátis liberado novamente.');
-      fetchUsers();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
@@ -165,41 +100,30 @@ export function AdminView() {
     const months = couponForm.months ? Number(couponForm.months) : undefined;
     const maxRedemptions = couponForm.maxRedemptions ? Number(couponForm.maxRedemptions) : undefined;
     if (!percentOff) { toast.error('Informe o percentual de desconto (1 a 100).'); return; }
-    setCreatingCoupon(true);
     try {
-      const res = await apiPost('/api/admin/billing/coupons', {
+      await createCoupon.mutateAsync({
         name: couponForm.name || undefined,
         percentOff,
         months,
         code: couponForm.code || undefined,
         maxRedemptions,
       });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
       toast.success('Cupom criado!');
       setCouponForm({ name: '', percentOff: '', months: '', code: '', maxRedemptions: '' });
-      fetchCoupons();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setCreatingCoupon(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
   const handleApplyCoupon = async () => {
     if (!applyFor || !selectedCouponId) return;
-    setApplying(true);
     try {
-      const res = await apiPost(`/api/admin/billing/users/${applyFor.id}/apply-coupon`, { couponId: selectedCouponId });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await applyCouponMut.mutateAsync({ userId: applyFor.id, couponId: selectedCouponId });
       toast.success(`Cupom aplicado para ${applyFor.name}.`);
       setApplyFor(null);
       setSelectedCouponId('');
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setApplying(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
@@ -440,24 +364,8 @@ export function AdminView() {
 export function AdminUserDashboardView() {
   const params = useParams();
   const adminSelectedUserId = params.id as string;
-  const [userInfo, setUserInfo] = useState<ManagedUser | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!adminSelectedUserId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const usersRes = await apiFetch('/api/admin/users');
-        if (usersRes.ok && !cancelled) {
-          const users = await usersRes.json();
-          setUserInfo(users.find((u: ManagedUser) => u.id === adminSelectedUserId) || null);
-        }
-      } catch {}
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [adminSelectedUserId]);
+  const { data: users, isLoading: loading } = useAdminUsers();
+  const userInfo = users?.find((u) => u.id === adminSelectedUserId) ?? null;
 
   if (loading) {
     return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-neon/30 border-t-neon rounded-full animate-spin" /></div>;
