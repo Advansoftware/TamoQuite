@@ -84,7 +84,7 @@ export function BorrowersView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Pessoas</h2>
+          <h2 className="text-xl font-bold text-foreground">Clientes</h2>
           <p className="text-sm text-muted-foreground">{borrowers.length} cadastrado{borrowers.length !== 1 ? 's' : ''}</p>
         </div>
         <button
@@ -118,7 +118,7 @@ export function BorrowersView() {
             <User className="w-8 h-8 text-muted-foreground" />
           </div>
           <p className="text-sm text-muted-foreground">
-            {search ? 'Nenhum resultado encontrado' : 'Nenhuma pessoa cadastrada ainda'}
+            {search ? 'Nenhum resultado encontrado' : 'Nenhum cliente cadastrado ainda'}
           </p>
         </div>
       ) : (
@@ -196,7 +196,7 @@ export function BorrowersView() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Nova Pessoa</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Novo Cliente</DialogTitle>
             <DialogDescription className="text-muted-foreground">Cadastre um devedor para controlar empréstimos</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -249,7 +249,7 @@ export function BorrowersView() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Editar Pessoa</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Editar Cliente</DialogTitle>
             <DialogDescription className="text-muted-foreground">Atualize os dados do devedor</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -300,7 +300,7 @@ export function BorrowersView() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-danger">Excluir Pessoa</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-danger">Excluir Cliente</DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Tem certeza que deseja excluir <strong className="text-foreground">{selected?.name}</strong>? 
               Todos os empréstimos e parcelas associados serão removidos.

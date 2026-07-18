@@ -43,7 +43,9 @@ export class LoansService {
 
   async create(userId: string, dto: CreateLoanDto) {
     const frequency = normalizeFrequency(dto.frequency);
-    const interestRate = dto.interestRate ?? 0;
+    // Cap at 2 decimals so a float artefact (e.g. 5.0000000000000004 from a
+    // "receber total" calc) never gets persisted.
+    const interestRate = Math.round((dto.interestRate ?? 0) * 100) / 100;
 
     const borrower = await this.prisma.borrower.findFirst({
       where: { id: dto.borrowerId, userId },

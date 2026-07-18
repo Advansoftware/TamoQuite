@@ -7,6 +7,14 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+/**
+ * Formats an interest rate with at most 2 decimals, dropping trailing zeros.
+ * e.g. 5.0000000000000004 → "5", 2.5 → "2.5", 2.505 → "2.51".
+ */
+export function formatRate(rate: number): string {
+  return String(Math.round(rate * 100) / 100);
+}
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return new Intl.DateTimeFormat('pt-BR', {

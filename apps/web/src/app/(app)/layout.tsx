@@ -17,7 +17,7 @@ import { hasActiveSubscription } from '@/lib/helpers';
 
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
-  { href: '/borrowers', label: 'Pessoas' },
+  { href: '/borrowers', label: 'Clientes' },
   { href: '/loans', label: 'Empréstimos' },
 ];
 
@@ -67,7 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col bg-background">
       <ServiceWorkerRegister />
 
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
+      <header className="sticky top-0 z-30 bg-background border-b border-border">
         <div className="max-w-5xl mx-auto flex items-center justify-between h-14 px-4 w-full">
           <div className="flex items-center gap-2.5">
             {showBack && (

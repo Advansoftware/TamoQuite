@@ -76,7 +76,7 @@ export function CreateLoanDialog({
       setPersonDialogOpen(false);
       setNewPerson({ name: '', whatsapp: '' });
       setBorrowerSearch('');
-      toast.success('Pessoa criada e selecionada!');
+      toast.success('Cliente criado e selecionado!');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro de conexão com o servidor');
     }
@@ -158,6 +158,9 @@ export function CreateLoanDialog({
       finalRate = calcRateFromTotal(P, totalInput, n);
     }
 
+    // Never store a float artefact like 5.0000000000000004 — cap at 2 decimals.
+    finalRate = Math.round(finalRate * 100) / 100;
+
     if (!activeBorrowerId || !P || !n || !form.startDate || (!singlePayment && !finalRate)) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
@@ -209,7 +212,7 @@ export function CreateLoanDialog({
           {/* Borrower Selector - only show if not fixed */}
           {!fixedBorrowerId && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Pessoa *</label>
+              <label className="text-sm font-medium">Cliente *</label>
               <Popover open={borrowerOpen} onOpenChange={setBorrowerOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -222,7 +225,7 @@ export function CreateLoanDialog({
                   >
                     {form.borrowerId
                       ? borrowers.find((b) => b.id === form.borrowerId)?.name
-                      : loadingBorrowers ? 'Carregando...' : 'Selecione uma pessoa'}
+                      : loadingBorrowers ? 'Carregando...' : 'Selecione um cliente'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </button>
                 </PopoverTrigger>
@@ -237,14 +240,14 @@ export function CreateLoanDialog({
                     <CommandList id="borrower-list">
                       <CommandEmpty className="py-4 text-sm">
                         <div className="flex flex-col items-center gap-2 px-3">
-                          <span className="text-muted-foreground">Nenhuma pessoa encontrada.</span>
+                          <span className="text-muted-foreground">Nenhum cliente encontrado.</span>
                           <button
                             type="button"
                             onClick={openCreatePerson}
                             className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-neon text-background text-xs font-semibold hover:bg-neon/90 transition-colors cursor-pointer"
                           >
                             <UserPlus className="w-3.5 h-3.5" />
-                            {borrowerSearch.trim() ? `Criar "${borrowerSearch.trim()}"` : 'Criar pessoa'}
+                            {borrowerSearch.trim() ? `Criar "${borrowerSearch.trim()}"` : 'Criar cliente'}
                           </button>
                         </div>
                       </CommandEmpty>
@@ -537,9 +540,9 @@ export function CreateLoanDialog({
     <Dialog open={personDialogOpen} onOpenChange={setPersonDialogOpen}>
       <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold">Nova Pessoa</DialogTitle>
+          <DialogTitle className="text-lg font-bold">Novo Cliente</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Cadastre a pessoa para usar neste empréstimo
+            Cadastre o cliente para usar neste empréstimo
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -548,7 +551,7 @@ export function CreateLoanDialog({
             <Input
               value={newPerson.name}
               onChange={(e) => setNewPerson({ ...newPerson, name: e.target.value })}
-              placeholder="Nome da pessoa"
+              placeholder="Nome do cliente"
               className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
             />
           </div>

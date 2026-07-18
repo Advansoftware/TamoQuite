@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 
 const tabs = [
   { href: '/dashboard', label: 'Painel', icon: LayoutDashboard },
-  { href: '/borrowers', label: 'Pessoas', icon: Users },
+  { href: '/borrowers', label: 'Clientes', icon: Users },
   { href: '/loans', label: 'Empréstimos', icon: FileText },
 ];
 
@@ -56,7 +56,7 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface-elevated/95 backdrop-blur-xl border-t border-border md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface-elevated border-t border-border md:hidden">
         <div className="max-w-lg mx-auto flex items-center justify-around h-16 px-2">
           {allTabs.map((tab) => {
             const isActive = pathname === tab.href || pathname.startsWith(tab.href + '/');

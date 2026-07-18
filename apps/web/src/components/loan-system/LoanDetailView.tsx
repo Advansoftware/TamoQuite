@@ -13,6 +13,7 @@ import {
   getStatusLabel,
   getStatusBgColor,
   formatPhone,
+  formatRate,
   generateWhatsAppLink,
   generateChargeMessage,
 } from '@/lib/helpers';
@@ -285,7 +286,7 @@ export function LoanDetailView() {
           </div>
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1">Juros</p>
-            <p className="text-sm font-bold text-warning">{loan.interestRate}%</p>
+            <p className="text-sm font-bold text-warning">{formatRate(loan.interestRate)}%</p>
           </div>
         </div>
       </div>
