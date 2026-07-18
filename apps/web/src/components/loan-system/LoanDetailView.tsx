@@ -462,18 +462,24 @@ export function LoanDetailView() {
                             )}
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-surface border-border text-foreground">
+                        <DropdownMenuContent align="end" className="bg-surface border-border text-foreground w-64">
                           <DropdownMenuItem
                             onClick={() => sendChargeMutation.mutate(inst.id)}
-                            className="cursor-pointer focus:bg-secondary/40"
+                            className="cursor-pointer focus:bg-secondary/40 flex-col items-start gap-0.5 py-2"
                           >
-                            <Send className="w-4 h-4 text-neon" />
-                            Enviar cobrança agora
+                            <span className="flex items-center gap-2 font-medium">
+                              <Send className="w-4 h-4 text-neon" />
+                              O sistema cobra por mim
+                            </span>
+                            <span className="text-[11px] text-muted-foreground pl-6">Envia a mensagem agora, automático.</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild className="cursor-pointer focus:bg-secondary/40">
-                            <a href={waLink} target="_blank" rel="noopener noreferrer">
-                              <MessageCircle className="w-4 h-4 text-whatsapp" />
-                              Abrir no meu WhatsApp
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" className="flex-col items-start gap-0.5 py-2">
+                              <span className="flex items-center gap-2 font-medium">
+                                <MessageCircle className="w-4 h-4 text-whatsapp" />
+                                Eu mesmo envio
+                              </span>
+                              <span className="text-[11px] text-muted-foreground pl-6">Abre o WhatsApp com a mensagem pronta.</span>
                             </a>
                           </DropdownMenuItem>
                         </DropdownMenuContent>

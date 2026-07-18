@@ -35,9 +35,9 @@ const PLACEHOLDER_HINT =
   'Variáveis: {{nome}}, {{valor}}, {{vencimento}}, {{parcela}}, {{total}}, {{credor}}, {{telefone_credor}}';
 
 const MODE_OPTIONS: { value: WhatsappMode; label: string; desc: string }[] = [
-  { value: 'OWN', label: 'Meu número', desc: 'As cobranças saem do seu WhatsApp conectado (aba WhatsApp).' },
-  { value: 'GLOBAL', label: 'Número TamoQuite', desc: 'Enviamos pelo número da plataforma. Ideal se você não pode conectar o seu.' },
-  { value: 'MANUAL', label: 'Só manual', desc: 'Nenhum envio automático — você dispara pelos links de cobrança.' },
+  { value: 'MANUAL', label: 'Eu mesmo cobro', desc: 'Você toca em "Cobrar" e o WhatsApp abre com a mensagem pronta. Nada é enviado sozinho.' },
+  { value: 'OWN', label: 'O sistema cobra pelo meu WhatsApp', desc: 'Conecte seu WhatsApp e as cobranças saem do seu número, automaticamente.' },
+  { value: 'GLOBAL', label: 'O sistema cobra pra mim', desc: 'Enviamos pelo número da TamoQuite. Ideal se você não quer conectar o seu.' },
 ];
 
 function WhatsappTab() {
@@ -168,8 +168,8 @@ function WhatsappTab() {
       {/* Modo de envio — de qual WhatsApp saem as cobranças */}
       <div className="p-4 rounded-2xl bg-surface border border-border space-y-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">Como enviar as cobranças</p>
-          <p className="text-xs text-muted-foreground">De qual WhatsApp saem as mensagens automáticas.</p>
+          <p className="text-sm font-semibold text-foreground">Quem cobra?</p>
+          <p className="text-xs text-muted-foreground">Escolha se você mesmo envia as cobranças ou se o sistema envia por você.</p>
         </div>
         <div className="grid grid-cols-1 gap-2">
           {MODE_OPTIONS.map((opt) => {
