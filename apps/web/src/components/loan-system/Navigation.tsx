@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiPost } from '@/lib/api';
-import { LayoutDashboard, Users, FileText, Shield, LogOut, KeyRound, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Shield, LogOut, KeyRound, Settings, Menu } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -81,12 +81,8 @@ export function BottomNav() {
             onClick={() => setSettingsOpen(true)}
             className="flex flex-col items-center gap-1 py-2 px-3 rounded-xl text-muted-foreground hover:text-foreground transition-all min-w-[60px]"
           >
-            <div className="w-7 h-7 rounded-full bg-neon-dim flex items-center justify-center">
-              <span className="text-neon text-[10px] font-bold">
-                {user?.name?.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase() || 'U'}
-              </span>
-            </div>
-            <span className="text-[10px] font-medium">Perfil</span>
+            <Menu className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Menu</span>
           </button>
         </div>
       </nav>
@@ -95,14 +91,12 @@ export function BottomNav() {
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-sm sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Meu Perfil</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Menu</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-neon-dim flex items-center justify-center">
-                <span className="text-neon font-bold text-sm">
-                  {user?.name?.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                </span>
+                <Settings className="w-5 h-5 text-neon" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">{user?.name}</p>

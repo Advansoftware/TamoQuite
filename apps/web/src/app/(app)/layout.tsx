@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Zap } from 'lucide-react';
+import { Zap, Menu } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { BottomNav } from '@/components/loan-system/Navigation';
 import { ServiceWorkerRegister } from '@/components/loan-system/ServiceWorkerRegister';
@@ -119,9 +119,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
             <button
               onClick={() => window.dispatchEvent(new Event('open-settings-dialog'))}
-              className="hidden md:flex w-8 h-8 rounded-full bg-neon-dim border border-neon/20 items-center justify-center text-neon text-xs font-bold hover:bg-neon/20 transition-all cursor-pointer"
+              aria-label="Menu"
+              title="Menu"
+              className="hidden md:flex w-8 h-8 rounded-full bg-secondary border border-border items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-elevated transition-all cursor-pointer"
             >
-              {user.name?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() || 'U'}
+              <Menu className="w-4 h-4" />
             </button>
           </div>
         </div>
