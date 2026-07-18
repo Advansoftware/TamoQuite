@@ -14,6 +14,7 @@ import {
   useDisconnectWhatsapp,
 } from '@/features/settings/use-whatsapp';
 import type { BillingSettings, WhatsappMode, WhatsappStatus } from '@/features/settings/types';
+import { useSubscription, useOpenBillingPortal } from '@/features/subscription/use-subscription';
 import { useAppStore } from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -415,15 +416,6 @@ function BillingTab() {
   );
 }
 
-interface SubscriptionInfo {
-  status: string;
-  hasSubscription: boolean;
-  currentPeriodEnd: number | null;
-  cancelAtPeriodEnd: boolean;
-  amount: number | null;
-  currency: string | null;
-  interval: string | null;
-}
 
 const STATUS_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' }> = {
   active: { label: 'Ativa', tone: 'ok' },
@@ -443,35 +435,15 @@ const INTERVAL_LABEL: Record<string, string> = {
 };
 
 function SubscriptionTab() {
-  const [info, setInfo] = useState<SubscriptionInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [opening, setOpening] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiFetch('/api/stripe/subscription');
-        if (res.ok) setInfo(await res.json());
-      } catch { /* ignore */ } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const { data: info, isLoading: loading } = useSubscription();
+  const portal = useOpenBillingPortal();
+  const opening = portal.isPending;
 
   const openPortal = async () => {
-    setOpening(true);
     try {
-      const res = await apiPost('/api/stripe/portal', {});
-      if (!res.ok) {
-        toast.error((await getApiError(res)) || 'Erro ao abrir o portal de assinatura');
-        setOpening(false);
-        return;
-      }
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch {
-      toast.error('Erro de conexão ao abrir o portal');
-      setOpening(false);
+      await portal.mutateAsync();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao abrir o portal de assinatura');
     }
   };
 
