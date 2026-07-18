@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -11,12 +10,11 @@ import {
 } from '@nestjs/common';
 import Stripe from 'stripe';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
-import { CurrentUser, AuthUser } from '../common/current-user.decorator';
+import { SuperAdminGuard } from '../common/super-admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
-import { SUPER_ADMIN_EMAIL } from '../common/constants';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 @Controller('admin/billing')
 export class AdminBillingController {
   constructor(
@@ -24,16 +22,9 @@ export class AdminBillingController {
     private readonly stripe: StripeService,
   ) {}
 
-  private assertSuperAdmin(user: AuthUser) {
-    if (user.email !== SUPER_ADMIN_EMAIL) {
-      throw new ForbiddenException('Acesso restrito');
-    }
-  }
-
   /** Clears the one-time trial flag so the user can start a fresh 7-day free trial. */
   @Post('users/:id/reset-trial')
-  async resetTrial(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    this.assertSuperAdmin(user);
+  async resetTrial(@Param('id') id: string) {
     const target = await this.prisma.systemUser.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('Usuário não encontrado');
     await this.prisma.systemUser.update({ where: { id }, data: { trialUsedAt: null } });
@@ -42,8 +33,7 @@ export class AdminBillingController {
 
   /** Lists coupons with their promotion codes so the admin can see/share them. */
   @Get('coupons')
-  async listCoupons(@CurrentUser() user: AuthUser) {
-    this.assertSuperAdmin(user);
+  async listCoupons() {
     const coupons = await this.stripe.client.coupons.list({ limit: 100 });
     const promos = await this.stripe.client.promotionCodes.list({ limit: 100 });
 
@@ -79,7 +69,6 @@ export class AdminBillingController {
    */
   @Post('coupons')
   async createCoupon(
-    @CurrentUser() user: AuthUser,
     @Body()
     body: {
       name?: string;
@@ -90,8 +79,6 @@ export class AdminBillingController {
       maxRedemptions?: number;
     },
   ) {
-    this.assertSuperAdmin(user);
-
     const { name, percentOff, amountOffBRL, months, code, maxRedemptions } = body;
 
     if (!percentOff && !amountOffBRL) {
@@ -152,11 +139,9 @@ export class AdminBillingController {
    */
   @Post('users/:id/apply-coupon')
   async applyCoupon(
-    @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() body: { couponId?: string },
   ) {
-    this.assertSuperAdmin(user);
     if (!body.couponId) throw new BadRequestException('Cupom é obrigatório');
 
     const target = await this.prisma.systemUser.findUnique({ where: { id } });
