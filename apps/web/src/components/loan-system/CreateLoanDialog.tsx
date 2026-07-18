@@ -12,8 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
-
-type CalcMode = 'BY_RATE' | 'BY_TOTAL';
+import { calcFromRate, calcRateFromTotal, type CalcMode } from '@/features/loans/loan-math';
 
 interface BorrowerOption {
   id: string;
@@ -27,19 +26,6 @@ interface CreateLoanDialogProps {
   fixedBorrowerId?: string;
   fixedBorrowerName?: string;
   onSuccess: () => void;
-}
-
-// Simple interest on the original principal: total = P × (1 + rate × nº periods).
-function calcFromRate(P: number, r: number, n: number): { total: number; pmt: number } {
-  const total = P * (1 + r * n);
-  return { total, pmt: n > 0 ? total / n : 0 };
-}
-
-// Inverse of the above: which per-period rate makes the total reach F?
-function calcRateFromTotal(P: number, F: number, n: number): number {
-  if (P <= 0 || n <= 0) return 0;
-  const rate = ((F / P - 1) / n) * 100;
-  return Math.round(rate * 100) / 100;
 }
 
 export function CreateLoanDialog({
@@ -157,11 +143,17 @@ export function CreateLoanDialog({
   let previewRate = 0;
 
   if (singlePayment && P > 0) {
-    // "À vista": total received in one shot. Defaults to the principal (0% interest).
-    const receive = totalInput > 0 ? totalInput : P;
+    // "À vista": single-shot total. Either from a % on the principal or a target total.
+    let receive: number;
+    if (calcMode === 'BY_RATE') {
+      receive = P * (1 + r / 100);
+      previewRate = r;
+    } else {
+      receive = totalInput > 0 ? totalInput : P;
+      previewRate = receive > P ? ((receive / P) - 1) * 100 : 0;
+    }
     previewTotal = receive;
     previewPmt = receive;
-    previewRate = receive > P ? ((receive / P) - 1) * 100 : 0;
   } else if (calcMode === 'BY_RATE' && P > 0 && r > 0 && n > 0) {
     const calc = calcFromRate(P, r / 100, n);
     previewTotal = calc.total;
@@ -178,9 +170,13 @@ export function CreateLoanDialog({
     let finalRate = 0;
 
     if (singlePayment) {
-      // Single "à vista" payment: interest is optional (receive == principal by default).
-      const receive = totalInput > 0 ? totalInput : P;
-      finalRate = receive > P ? ((receive / P) - 1) * 100 : 0;
+      // Single "à vista" payment (1 period). Interest via a % or a target total; both optional.
+      if (calcMode === 'BY_RATE') {
+        finalRate = parseFloat(form.interestRate) || 0;
+      } else {
+        const receive = totalInput > 0 ? totalInput : P;
+        finalRate = receive > P ? ((receive / P) - 1) * 100 : 0;
+      }
     } else if (calcMode === 'BY_RATE') {
       finalRate = parseFloat(form.interestRate);
     } else {
@@ -344,18 +340,54 @@ export function CreateLoanDialog({
           </div>
 
           {singlePayment && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Total a Receber (R$)</label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder={P > 0 ? `Igual ao emprestado (${formatCurrency(P)})` : 'Igual ao valor emprestado'}
-                value={form.totalAmount}
-                onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
-              />
-              <p className="text-xs text-muted-foreground">Deixe em branco para receber o mesmo valor emprestado (sem juros). Preencha para cobrar juros.</p>
-            </div>
+            <>
+              <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCalcMode('BY_RATE')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_RATE' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  Informar %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalcMode('BY_TOTAL')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_TOTAL' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  Informar total
+                </button>
+              </div>
+
+              {calcMode === 'BY_RATE' ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Juros (%)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ex: 5"
+                    value={form.interestRate}
+                    onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+                    className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                  />
+                  <p className="text-xs text-muted-foreground">Juros único sobre o valor emprestado. Deixe 0 para receber o mesmo valor.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Total a Receber (R$)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder={P > 0 ? `Igual ao emprestado (${formatCurrency(P)})` : 'Igual ao valor emprestado'}
+                    value={form.totalAmount}
+                    onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
+                    className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                  />
+                  <p className="text-xs text-muted-foreground">Quanto vai receber no total. Em branco = mesmo valor emprestado (sem juros).</p>
+                </div>
+              )}
+            </>
           )}
 
           {!singlePayment && (
