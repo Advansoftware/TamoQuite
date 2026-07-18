@@ -128,7 +128,7 @@ export function BorrowerDetailView() {
             href={`https://wa.me/55${borrower.whatsapp}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-10 h-10 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-colors"
+            className="w-10 h-10 rounded-xl bg-whatsapp/10 hover:bg-whatsapp/20 text-whatsapp flex items-center justify-center transition-colors"
           >
             <MessageCircle className="w-5 h-5" />
           </a>
@@ -232,7 +232,7 @@ export function BorrowerDetailView() {
                 onClick={openConsolidatedWhatsApp}
                 className="cursor-pointer focus:bg-secondary/40"
               >
-                <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                <MessageCircle className="w-4 h-4 text-whatsapp" />
                 Abrir no meu WhatsApp
               </DropdownMenuItem>
             </DropdownMenuContent>

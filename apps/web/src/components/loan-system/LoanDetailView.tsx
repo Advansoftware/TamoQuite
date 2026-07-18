@@ -452,11 +452,11 @@ export function LoanDetailView() {
                         <DropdownMenuTrigger asChild>
                           <button
                             disabled={sendingChargeId === inst.id}
-                            className="flex items-center justify-center w-10 h-10 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] rounded-xl transition-colors shrink-0 disabled:opacity-60 cursor-pointer outline-none"
+                            className="flex items-center justify-center w-10 h-10 bg-whatsapp/10 hover:bg-whatsapp/20 text-whatsapp rounded-xl transition-colors shrink-0 disabled:opacity-60 cursor-pointer outline-none"
                             title="Cobrar via WhatsApp"
                           >
                             {sendingChargeId === inst.id ? (
-                              <span className="w-4 h-4 border-2 border-[#25D366]/30 border-t-[#25D366] rounded-full animate-spin" />
+                              <span className="w-4 h-4 border-2 border-whatsapp/30 border-t-whatsapp rounded-full animate-spin" />
                             ) : (
                               <MessageCircle className="w-4 h-4" />
                             )}
@@ -472,7 +472,7 @@ export function LoanDetailView() {
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild className="cursor-pointer focus:bg-secondary/40">
                             <a href={waLink} target="_blank" rel="noopener noreferrer">
-                              <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                              <MessageCircle className="w-4 h-4 text-whatsapp" />
                               Abrir no meu WhatsApp
                             </a>
                           </DropdownMenuItem>
