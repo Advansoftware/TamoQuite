@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPost, getApiError } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiPost, getApiError } from '@/lib/api';
+import { qk } from '@/lib/query-keys';
+import { useBorrower } from '@/features/borrowers/use-borrowers';
 import { formatPhone, formatCurrency, formatDate, generateWhatsAppLink } from '@/lib/helpers';
 import { Plus, FileText, ArrowRight, ChevronRight, MessageCircle, AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,66 +21,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CreateLoanDialog } from './CreateLoanDialog';
 
-interface BorrowerDetail {
-  id: string;
-  name: string;
-  whatsapp: string;
-  notes: string | null;
-  createdAt: string;
-  loans: Array<{
-    id: string;
-    originalAmount: number;
-    totalAmount: number;
-    status: string;
-    startDate: string;
-    installmentCount: number;
-    installments: Array<{
-      id: string;
-      status: string;
-      amount: number;
-      paidAmount: number;
-      installmentNumber: number;
-      dueDate: string;
-    }>;
-  }>;
-}
-
 export function BorrowerDetailView() {
   const params = useParams();
   const router = useRouter();
   const selectedBorrowerId = params.id as string;
-  const { refreshKey } = useAppStore();
-  const [borrower, setBorrower] = useState<BorrowerDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: borrower, isLoading: loading } = useBorrower(selectedBorrowerId);
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
-  const [selectedOverdueIds, setSelectedOverdueIds] = useState<string[]>([]);
+  // null = usuário ainda não mexeu → todas as atrasadas ficam pré-selecionadas.
+  const [selectedOverdueIds, setSelectedOverdueIds] = useState<string[] | null>(null);
   const [sendingConsolidated, setSendingConsolidated] = useState(false);
 
-  const fetchBorrower = useCallback(async () => {
-    if (!selectedBorrowerId) return;
-    setLoading(true);
-    try {
-      const res = await apiFetch(`/api/borrowers/${selectedBorrowerId}`);
-      const json: BorrowerDetail = await res.json();
-      setBorrower(json);
-      
-      if (json && json.loans) {
-        const overdue = json.loans.flatMap(l => l.installments).filter(i => i.status === 'OVERDUE');
-        setSelectedOverdueIds(overdue.map(i => i.id));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBorrowerId]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchBorrower();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchBorrower, refreshKey]);
+  const refreshBorrower = () => {
+    qc.invalidateQueries({ queryKey: qk.borrower(selectedBorrowerId) });
+    qc.invalidateQueries({ queryKey: qk.loans });
+    qc.invalidateQueries({ queryKey: qk.dashboard });
+  };
 
   if (loading) {
     return (
@@ -106,9 +64,13 @@ export function BorrowerDetailView() {
   const hasOverdue = overdueInstallments.length > 0;
   const totalOverdue = overdueInstallments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
 
+  // Default selection = all overdue, until the user toggles anything.
+  const allOverdueIds = overdueInstallments.map((i) => i.id);
+  const selectedIds = selectedOverdueIds ?? allOverdueIds;
+
   const buildConsolidatedMessage = (): string | null => {
     if (!borrower) return null;
-    const selectedInsts = overdueInstallments.filter((i) => selectedOverdueIds.includes(i.id));
+    const selectedInsts = overdueInstallments.filter((i) => selectedIds.includes(i.id));
     if (selectedInsts.length === 0) return null;
     const totalAmount = selectedInsts.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
 
@@ -210,7 +172,7 @@ export function BorrowerDetailView() {
           </p>
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
             {overdueInstallments.map((inst) => {
-              const isChecked = selectedOverdueIds.includes(inst.id);
+              const isChecked = selectedIds.includes(inst.id);
               const loanIndex = borrower.loans.findIndex((l) => l.id === inst.loanId);
               const loanNumber = borrower.loans.length - loanIndex;
               const remaining = inst.amount - (inst.paidAmount || 0);
@@ -226,9 +188,9 @@ export function BorrowerDetailView() {
                       checked={isChecked}
                       onChange={() => {
                         if (isChecked) {
-                          setSelectedOverdueIds((prev) => prev.filter((id) => id !== inst.id));
+                          setSelectedOverdueIds((prev) => (prev ?? allOverdueIds).filter((id) => id !== inst.id));
                         } else {
-                          setSelectedOverdueIds((prev) => [...prev, inst.id]);
+                          setSelectedOverdueIds((prev) => [...(prev ?? allOverdueIds), inst.id]);
                         }
                       }}
                       className="accent-danger h-4 w-4 shrink-0 rounded cursor-pointer"
@@ -247,7 +209,7 @@ export function BorrowerDetailView() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                disabled={selectedOverdueIds.length === 0 || sendingConsolidated}
+                disabled={selectedIds.length === 0 || sendingConsolidated}
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-danger text-white hover:bg-danger/95 font-bold rounded-xl text-xs transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-none"
               >
                 {sendingConsolidated ? (
@@ -255,7 +217,7 @@ export function BorrowerDetailView() {
                 ) : (
                   <MessageCircle className="w-4 h-4 shrink-0" />
                 )}
-                Enviar Cobrança Consolidada ({selectedOverdueIds.length})
+                Enviar Cobrança Consolidada ({selectedIds.length})
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="bg-surface border-border text-foreground w-[var(--radix-dropdown-menu-trigger-width)]">
@@ -383,7 +345,7 @@ export function BorrowerDetailView() {
         onOpenChange={setCreateLoanOpen}
         fixedBorrowerId={borrower.id}
         fixedBorrowerName={borrower.name}
-        onSuccess={fetchBorrower}
+        onSuccess={refreshBorrower}
       />
     </div>
   );

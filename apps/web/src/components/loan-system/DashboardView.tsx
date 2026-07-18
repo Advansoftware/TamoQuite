@@ -1,80 +1,20 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/api';
-
-interface DashboardData {
-  totalMonthly: number;
-  totalMonthlyPending: number;
-  receivedMonthly: number;
-  upcomingInstallments: Array<{
-    id: string;
-    installmentNumber: number;
-    dueDate: string;
-    amount: number;
-    status: string;
-    paidAmount: number;
-    borrowerName: string;
-    borrowerWhatsapp: string;
-    loanId: string;
-  }>;
-  overdueInstallments: Array<{
-    id: string;
-    installmentNumber: number;
-    dueDate: string;
-    amount: number;
-    status: string;
-    paidAmount: number;
-    borrowerName: string;
-    borrowerWhatsapp: string;
-    loanId: string;
-  }>;
-  overdueCount: number;
-  activeLoans: number;
-  totalOutstanding: number;
-  recentLoans: Array<{
-    id: string;
-    originalAmount: number;
-    totalAmount: number;
-    remainingAmount: number;
-    status: string;
-    createdAt: string;
-    borrower: { name: string; whatsapp: string };
-    _count: { installments: number };
-  }>;
-}
-
 import { formatCurrency, formatDateShort, getDaysUntil, getDaysLabel, generateWhatsAppLink, generateChargeMessage, getStatusLabel, getStatusBgColor, formatPhone } from '@/lib/helpers';
 import { useAppStore } from '@/lib/store';
+import { useDashboard } from '@/features/dashboard/use-dashboard';
+import { useInvalidateLoans } from '@/features/loans/use-loans';
 import { Wallet, TrendingUp, AlertTriangle, Clock, ArrowRight, MessageCircle, DollarSign, Plus, UserPlus } from 'lucide-react';
 import { CreateLoanDialog } from './CreateLoanDialog';
 
 export function DashboardView() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loanDialogOpen, setLoanDialogOpen] = useState(false);
   const router = useRouter();
-  const { refreshKey, setLoansFilter, triggerRefresh } = useAppStore();
-
-  const fetchDashboard = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/dashboard');
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchDashboard();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchDashboard, refreshKey]);
+  const { setLoansFilter } = useAppStore();
+  const { data, isLoading: loading } = useDashboard();
+  const invalidateLoans = useInvalidateLoans();
 
   if (loading) {
     return (
@@ -347,7 +287,7 @@ export function DashboardView() {
         onOpenChange={setLoanDialogOpen}
         onSuccess={() => {
           setLoanDialogOpen(false);
-          triggerRefresh();
+          invalidateLoans();
         }}
       />
     </div>

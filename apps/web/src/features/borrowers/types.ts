@@ -15,3 +15,27 @@ export interface BorrowerInput {
   whatsapp: string;
   notes?: string;
 }
+
+export interface BorrowerDetail {
+  id: string;
+  name: string;
+  whatsapp: string;
+  notes: string | null;
+  createdAt: string;
+  loans: Array<{
+    id: string;
+    originalAmount: number;
+    totalAmount: number;
+    status: string;
+    startDate: string;
+    installmentCount: number;
+    installments: Array<{
+      id: string;
+      status: string;
+      amount: number;
+      paidAmount: number;
+      installmentNumber: number;
+      dueDate: string;
+    }>;
+  }>;
+}

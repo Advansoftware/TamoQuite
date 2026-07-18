@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiJson, apiPost, apiPut, apiDelete, resolveJson } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
-import type { Borrower, BorrowerInput } from './types';
+import type { Borrower, BorrowerDetail, BorrowerInput } from './types';
 
 export function useBorrowers() {
   return useQuery({
     queryKey: qk.borrowers,
     queryFn: () => apiJson<Borrower[]>('/api/borrowers'),
+  });
+}
+
+export function useBorrower(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.borrower(id ?? ''),
+    queryFn: () => apiJson<BorrowerDetail>(`/api/borrowers/${id}`),
+    enabled: !!id,
   });
 }
 

@@ -23,10 +23,8 @@ interface AppState {
   markSubscriptionInactive: () => void;
 
   // UI (non-route) state
-  refreshKey: number;
   loansFilter: string;
   setLoansFilter: (filter: string) => void;
-  triggerRefresh: () => void;
 }
 
 // Helper: get auth headers for fetch calls
@@ -87,8 +85,6 @@ export const useAppStore = create<AppState>((set) => ({
     set({ user: null, token: null, isAuthenticated: false });
   },
 
-  refreshKey: 0,
   loansFilter: 'ALL',
   setLoansFilter: (filter) => set({ loansFilter: filter }),
-  triggerRefresh: () => set((state) => ({ refreshKey: state.refreshKey + 1 })),
 }));
