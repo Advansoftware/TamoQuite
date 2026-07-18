@@ -804,18 +804,18 @@ export function SettingsView() {
 
       <Tabs defaultValue="whatsapp" className="w-full">
         <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} bg-surface`}>
-          <TabsTrigger value="whatsapp" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
-            <Smartphone className="w-4 h-4 mr-1.5" /> WhatsApp
+          <TabsTrigger value="whatsapp" className="text-xs sm:text-sm px-1 sm:px-2 data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
+            <Smartphone className="w-4 h-4 mr-1.5 hidden sm:inline-block" /> WhatsApp
           </TabsTrigger>
-          <TabsTrigger value="billing" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
-            <MessageSquare className="w-4 h-4 mr-1.5" /> Cobrança
+          <TabsTrigger value="billing" className="text-xs sm:text-sm px-1 sm:px-2 data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
+            <MessageSquare className="w-4 h-4 mr-1.5 hidden sm:inline-block" /> Cobrança
           </TabsTrigger>
-          <TabsTrigger value="subscription" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
-            <CreditCard className="w-4 h-4 mr-1.5" /> Assinatura
+          <TabsTrigger value="subscription" className="text-xs sm:text-sm px-1 sm:px-2 data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
+            <CreditCard className="w-4 h-4 mr-1.5 hidden sm:inline-block" /> Assinatura
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="admin-global" className="data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
-              <Shield className="w-4 h-4 mr-1.5" /> Pool
+            <TabsTrigger value="admin-global" className="text-xs sm:text-sm px-1 sm:px-2 data-[state=active]:bg-neon-dim data-[state=active]:text-neon">
+              <Shield className="w-4 h-4 mr-1.5 hidden sm:inline-block" /> Pool
             </TabsTrigger>
           )}
         </TabsList>

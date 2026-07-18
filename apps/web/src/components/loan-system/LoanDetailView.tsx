@@ -222,7 +222,7 @@ export function LoanDetailView() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.back()}
-          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
+          className="flex items-center justify-center gap-1.5 px-3.5 h-11 sm:h-auto sm:py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-neon" />
           Voltar
@@ -407,7 +407,7 @@ export function LoanDetailView() {
                           setSelectedInstallment(inst);
                           setPayOpen(true);
                         }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-neon/10 hover:bg-neon/20 text-neon rounded-xl text-xs font-semibold transition-colors active:scale-[0.98] cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 h-11 sm:h-auto sm:py-2.5 bg-neon/10 hover:bg-neon/20 text-neon rounded-xl text-xs font-semibold transition-colors active:scale-[0.98] cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Dar Baixa
@@ -418,7 +418,7 @@ export function LoanDetailView() {
                           setPartialAmount('');
                           setPartialOpen(true);
                         }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-surface-elevated hover:bg-secondary text-foreground rounded-xl text-xs font-medium transition-colors active:scale-[0.98] cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 h-11 sm:h-auto sm:py-2.5 bg-surface-elevated hover:bg-secondary text-foreground rounded-xl text-xs font-medium transition-colors active:scale-[0.98] cursor-pointer"
                       >
                         <DollarSign className="w-3.5 h-3.5" />
                         Pagamento Parcial
@@ -441,7 +441,7 @@ export function LoanDetailView() {
                           setRollImmediately(true);
                           setInterestOpen(true);
                         }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-warning/10 hover:bg-warning/20 text-warning rounded-xl text-xs font-semibold transition-colors active:scale-[0.98] cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 h-11 sm:h-auto sm:py-2 bg-warning/10 hover:bg-warning/20 text-warning rounded-xl text-xs font-semibold transition-colors active:scale-[0.98] cursor-pointer"
                       >
                         <Percent className="w-3.5 h-3.5" />
                         Pagar Apenas Juros

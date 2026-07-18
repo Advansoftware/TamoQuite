@@ -114,7 +114,7 @@ export function NotificationBell() {
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setDaysInput(String(notifyDays)); }}>
       <PopoverTrigger asChild>
         <button
-          className="relative flex items-center justify-center w-8 h-8 rounded-full bg-secondary hover:bg-surface-elevated text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="relative flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full bg-secondary hover:bg-surface-elevated text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           title="Notificações"
         >
           <Bell className="w-4 h-4" />

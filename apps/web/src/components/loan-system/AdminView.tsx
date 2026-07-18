@@ -140,7 +140,7 @@ export function AdminView() {
         </div>
         <button
           onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-neon text-background rounded-xl text-sm font-semibold hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] transition-all active:scale-95"
+          className="flex items-center gap-2 px-4 h-11 sm:h-auto sm:py-2.5 bg-neon text-background rounded-xl text-sm font-semibold hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] transition-all active:scale-95"
         >
           <UserPlus className="w-4 h-4" />
           <span className="hidden sm:inline">Novo</span>
@@ -238,7 +238,7 @@ export function AdminView() {
                     <>
                       <button
                         onClick={() => router.push(`/admin/users/${u.id}`)}
-                        className="w-8 h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
+                        className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
                         title="Ver dashboard"
                       >
                         <ChevronRight className="w-4 h-4 text-neon" />
@@ -246,7 +246,7 @@ export function AdminView() {
                       {isSuperAdmin && (
                         <button
                           onClick={() => { setApplyFor(u); setSelectedCouponId(''); }}
-                          className="w-8 h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
+                          className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-neon/10 flex items-center justify-center transition-colors"
                           title="Aplicar cupom"
                         >
                           <Gift className="w-3.5 h-3.5 text-neon" />
@@ -255,7 +255,7 @@ export function AdminView() {
                       {isSuperAdmin && u.trialUsedAt && (
                         <button
                           onClick={() => handleResetTrial(u)}
-                          className="w-8 h-8 rounded-lg bg-secondary hover:bg-warning/10 flex items-center justify-center transition-colors"
+                          className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-warning/10 flex items-center justify-center transition-colors"
                           title="Liberar novo teste grátis"
                         >
                           <RotateCcw className="w-3.5 h-3.5 text-warning" />
@@ -263,7 +263,7 @@ export function AdminView() {
                       )}
                       <button
                         onClick={() => handleDeactivate(u.id)}
-                        className="w-8 h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
+                        className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
                         title="Desativar"
                       >
                         <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />

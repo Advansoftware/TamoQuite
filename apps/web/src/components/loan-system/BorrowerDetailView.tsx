@@ -280,7 +280,7 @@ export function BorrowerDetailView() {
                       <div className="flex items-center gap-2">
                         <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Contrato #{borrower.loans.length - index}</p>
                         {contractHasOverdue && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
                             <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
                             Atrasado
                           </span>

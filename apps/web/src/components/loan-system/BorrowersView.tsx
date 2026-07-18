@@ -91,7 +91,7 @@ export function BorrowersView() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-neon text-background rounded-xl text-sm font-semibold hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] transition-all active:scale-95"
+          className="flex items-center gap-2 px-4 h-11 sm:h-auto sm:py-2.5 bg-neon text-background rounded-xl text-sm font-semibold hover:shadow-[0_0_20px_rgba(0,255,163,0.3)] transition-all active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Novo</span>
@@ -139,7 +139,7 @@ export function BorrowersView() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-sm font-semibold text-foreground truncate">{b.name}</p>
                       {hasOverdue && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-danger/10 text-danger border border-danger/20 font-bold flex items-center gap-0.5 shrink-0 animate-pulse">
                           <AlertTriangle className="w-2.5 h-2.5" />
                           Atrasado
                         </span>
@@ -161,7 +161,7 @@ export function BorrowersView() {
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => openEdit(b)}
-                    className="w-8 h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
+                    className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
                   >
                     <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -169,13 +169,13 @@ export function BorrowersView() {
                   </button>
                   <button
                     onClick={() => openDelete(b)}
-                    className="w-8 h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
+                    className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-danger" />
                   </button>
                   <button
                     onClick={() => router.push(`/borrowers/${b.id}`)}
-                    className="w-8 h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
+                    className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
                   >
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </button>

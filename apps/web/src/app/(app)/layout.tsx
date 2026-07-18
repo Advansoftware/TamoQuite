@@ -73,7 +73,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {showBack && (
               <button
                 onClick={() => router.back()}
-                className="flex items-center justify-center w-9 h-9 rounded-xl bg-secondary hover:bg-surface-elevated transition-colors -ml-1.5 mr-1"
+                className="flex items-center justify-center w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-secondary hover:bg-surface-elevated transition-colors -ml-1.5 mr-1"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
