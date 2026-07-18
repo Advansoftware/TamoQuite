@@ -33,6 +33,21 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
   return res;
 }
 
+/** GET returning typed JSON, throwing a friendly Error on non-OK. For React Query queryFns. */
+export async function apiJson<T>(url: string): Promise<T> {
+  const res = await apiFetch(url);
+  const err = await getApiError(res);
+  if (err) throw new Error(err);
+  return res.json() as Promise<T>;
+}
+
+/** Resolves a mutation Response to JSON, throwing a friendly Error on non-OK. */
+export async function resolveJson<T>(res: Response): Promise<T> {
+  const err = await getApiError(res);
+  if (err) throw new Error(err);
+  return res.json() as Promise<T>;
+}
+
 export async function apiPost(url: string, body: unknown): Promise<Response> {
   return apiFetch(url, {
     method: 'POST',

@@ -1,63 +1,32 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPost, apiPut, apiDelete, getApiError } from '@/lib/api';
-import { formatPhone, formatCurrency, formatDate } from '@/lib/helpers';
-import { Plus, Search, Phone, Trash2, User, ChevronRight, MessageCircle, AlertTriangle } from 'lucide-react';
+import { formatPhone } from '@/lib/helpers';
+import { Plus, Search, Phone, Trash2, User, ChevronRight, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
-
-interface Borrower {
-  id: string;
-  name: string;
-  whatsapp: string;
-  notes: string | null;
-  createdAt: string;
-  _count: { loans: number };
-  loans?: Array<{
-    installments: Array<{
-      status: string;
-    }>;
-  }>;
-}
+import { useBorrowers, useCreateBorrower, useUpdateBorrower, useDeleteBorrower } from '@/features/borrowers/use-borrowers';
+import type { Borrower } from '@/features/borrowers/types';
 
 export function BorrowersView() {
-  const [borrowers, setBorrowers] = useState<Borrower[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<Borrower | null>(null);
   const [form, setForm] = useState({ name: '', whatsapp: '', notes: '' });
-  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
-  const { refreshKey, triggerRefresh } = useAppStore();
 
-  const fetchBorrowers = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/borrowers');
-      const json = await res.json();
-      setBorrowers(json);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchBorrowers();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchBorrowers, refreshKey]);
+  const { data: borrowers = [], isLoading: loading } = useBorrowers();
+  const createMut = useCreateBorrower();
+  const updateMut = useUpdateBorrower();
+  const deleteMut = useDeleteBorrower();
+  const submitting = createMut.isPending || updateMut.isPending || deleteMut.isPending;
 
   const filtered = borrowers.filter((b) =>
     b.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -82,49 +51,31 @@ export function BorrowersView() {
 
   const handleCreate = async () => {
     if (!form.name || !form.whatsapp) return;
-    setSubmitting(true);
     try {
-      const res = await apiPost('/api/borrowers', form);
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await createMut.mutateAsync(form);
       setCreateOpen(false);
-      triggerRefresh();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
   const handleEdit = async () => {
     if (!selected || !form.name || !form.whatsapp) return;
-    setSubmitting(true);
     try {
-      const res = await apiPut(`/api/borrowers/${selected.id}`, form);
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await updateMut.mutateAsync({ id: selected.id, input: form });
       setEditOpen(false);
-      triggerRefresh();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
   const handleDelete = async () => {
     if (!selected) return;
-    setSubmitting(true);
     try {
-      const res = await apiDelete(`/api/borrowers/${selected.id}`);
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await deleteMut.mutateAsync(selected.id);
       setDeleteOpen(false);
-      triggerRefresh();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
