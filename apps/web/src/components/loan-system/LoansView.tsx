@@ -1,74 +1,32 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPost, apiDelete, getApiError } from '@/lib/api';
-import { formatCurrency, formatDate, getStatusLabel, getStatusBgColor, formatPhone } from '@/lib/helpers';
-import { Plus, Search, FileText, Trash2, ChevronRight, User, Percent, Calendar, ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { formatCurrency, formatPhone } from '@/lib/helpers';
+import { Plus, Search, FileText, Trash2, ChevronRight, Percent, Calendar, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLoans, useDeleteLoan, useInvalidateLoans } from '@/features/loans/use-loans';
+import type { LoanListItem as Loan } from '@/features/loans/types';
 
 import { CreateLoanDialog } from './CreateLoanDialog';
 
-interface BorrowerOption {
-  id: string;
-  name: string;
-  whatsapp: string;
-}
-
-interface Loan {
-  id: string;
-  borrowerId: string;
-  originalAmount: number;
-  interestRate: number;
-  totalAmount: number;
-  installmentCount: number;
-  startDate: string;
-  status: string;
-  createdAt: string;
-  borrower: { name: string; whatsapp: string };
-  installments: Array<{ id: string; status: string; amount: number; paidAmount: number; }>;
-}
-
-
-
 export function LoansView() {
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<Loan | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
-  const { refreshKey, triggerRefresh, loansFilter, setLoansFilter } = useAppStore();
+  const { loansFilter, setLoansFilter } = useAppStore();
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [loansRes, borrowersRes] = await Promise.all([
-        apiFetch('/api/loans'),
-        apiFetch('/api/borrowers'),
-      ]);
-      setLoans(await loansRes.json());
-      setBorrowers(await borrowersRes.json());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchData, refreshKey]);
+  const { data: loans = [], isLoading: loading } = useLoans();
+  const deleteMut = useDeleteLoan();
+  const invalidateLoans = useInvalidateLoans();
+  const submitting = deleteMut.isPending;
 
   const filtered = loans.filter((l) => {
     const matchesName = l.borrower.name.toLowerCase().includes(search.toLowerCase());
@@ -94,17 +52,11 @@ export function LoansView() {
 
   const handleDelete = async () => {
     if (!selected) return;
-    setSubmitting(true);
     try {
-      const res = await apiDelete(`/api/loans/${selected.id}`);
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
+      await deleteMut.mutateAsync(selected.id);
       setDeleteOpen(false);
-      triggerRefresh();
-    } catch {
-      toast.error('Erro de conexão com o servidor');
-    } finally {
-      setSubmitting(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
   };
 
@@ -213,7 +165,7 @@ export function LoansView() {
       <CreateLoanDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onSuccess={fetchData}
+        onSuccess={invalidateLoans}
       />
 
       {/* Delete Dialog */}
