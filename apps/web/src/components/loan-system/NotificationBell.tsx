@@ -1,19 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Bell, X, CreditCard } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { apiFetch, apiPost, apiPut, getApiError } from '@/lib/api';
 import { formatDate } from '@/lib/helpers';
 import { toast } from 'sonner';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-
-interface SubInfo {
-  status: string;
-  hasSubscription: boolean;
-  currentPeriodEnd: number | null;
-  cancelAtPeriodEnd: boolean;
-}
+import { useSubscription, useOpenBillingPortal, useUpdateNotifyDays } from '@/features/subscription/use-subscription';
 
 type Tone = 'warning' | 'danger' | 'info';
 
@@ -46,25 +39,15 @@ const toneDot: Record<Tone, string> = {
 };
 
 export function NotificationBell() {
-  const { user, setUser } = useAppStore();
-  const [sub, setSub] = useState<SubInfo | null>(null);
+  const user = useAppStore((s) => s.user);
+  const { data: sub } = useSubscription();
+  const openPortalMut = useOpenBillingPortal();
+  const updateDays = useUpdateNotifyDays();
   const [dismissed, setDismissed] = useState<string[]>(getDismissed);
   const [open, setOpen] = useState(false);
   const notifyDays = user?.notifyBeforeSubExpiryDays ?? 2;
   const [daysInput, setDaysInput] = useState(() => String(notifyDays));
-  const [savingDays, setSavingDays] = useState(false);
-
-  const fetchSub = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/stripe/subscription');
-      if (res.ok) setSub(await res.json());
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => { fetchSub(); }, 0);
-    return () => clearTimeout(t);
-  }, [fetchSub]);
+  const savingDays = updateDays.isPending;
 
   // ---- Build the notification list from available data ----
   const notifications: AppNotification[] = [];
@@ -109,30 +92,20 @@ export function NotificationBell() {
 
   const openPortal = async () => {
     try {
-      const res = await apiPost('/api/stripe/portal', {});
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch {
-      toast.error('Erro ao abrir o portal de assinatura');
+      await openPortalMut.mutateAsync();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao abrir o portal de assinatura');
     }
   };
 
   const saveDays = async () => {
     const n = Number(daysInput);
     if (!Number.isFinite(n) || n < 1 || n > 30) { toast.error('Escolha entre 1 e 30 dias.'); return; }
-    setSavingDays(true);
     try {
-      const res = await apiPut('/api/auth/notification-prefs', { notifyBeforeSubExpiryDays: n });
-      const errMsg = await getApiError(res);
-      if (errMsg) { toast.error(errMsg); return; }
-      if (user) setUser({ ...user, notifyBeforeSubExpiryDays: Math.round(n) });
+      await updateDays.mutateAsync(n);
       toast.success('Preferência salva.');
-    } catch {
-      toast.error('Erro ao salvar preferência');
-    } finally {
-      setSavingDays(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar preferência');
     }
   };
 
