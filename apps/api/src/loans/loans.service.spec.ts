@@ -197,3 +197,152 @@ describe('LoansService.remove — exclusão (soft delete)', () => {
     expect(prisma.loan.update).not.toHaveBeenCalled();
   });
 });
+
+describe('LoansService.update — correção de contrato', () => {
+  function pending(n: number) {
+    return Array.from({ length: n }, (_v, idx) => ({
+      id: `i${idx + 1}`,
+      installmentNumber: idx + 1,
+      amount: 110,
+      status: 'PENDING',
+      paidAmount: 0,
+    }));
+  }
+
+  function makeUpdatePrisma(loan: unknown) {
+    return {
+      borrower: { findFirst: vi.fn().mockResolvedValue({ id: 'b2', userId: 'u1' }) },
+      loan: { findFirst: vi.fn().mockResolvedValue(loan), update: vi.fn() },
+      installment: { update: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+      $transaction: vi.fn().mockResolvedValue([]),
+    } as unknown as PrismaService;
+  }
+
+  const baseLoan = {
+    id: 'loan1',
+    userId: 'u1',
+    borrowerId: 'b1',
+    originalAmount: 200,
+    interestRate: 5,
+    totalAmount: 220,
+    installmentCount: 2,
+    startDate: new Date(Date.UTC(2026, 0, 10, 12)),
+    paymentFrequency: 'MONTHLY',
+    installments: pending(2),
+  };
+
+  it('recalcula o total quando o valor original muda (500 @ 5% x 2 = R$550)', async () => {
+    const prisma = makeUpdatePrisma(baseLoan);
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { originalAmount: 500 });
+
+    const data = (prisma.loan.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.originalAmount).toBe(500);
+    expect(data.totalAmount).toBe(550);
+    // Both parcelas reused (same ids), corrected to 275 each.
+    const updates = (prisma.installment.update as ReturnType<typeof vi.fn>).mock.calls;
+    expect(updates.map((c) => c[0].where.id)).toEqual(['i1', 'i2']);
+    expect(updates.map((c) => c[0].data.amount)).toEqual([275, 275]);
+  });
+
+  it('um total informado explicitamente vence o derivado da taxa', async () => {
+    const prisma = makeUpdatePrisma(baseLoan);
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { originalAmount: 200, totalAmount: 250, installmentCount: 3 });
+
+    const data = (prisma.loan.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.totalAmount).toBe(250);
+    // 250 em 3x: os centavos sobram para a primeira parcela.
+    const amounts = (prisma.installment.update as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0].data.amount,
+    );
+    expect(amounts).toEqual([83.34, 83.33]);
+    // A 3ª parcela não existia, então é criada.
+    const created = (prisma.installment.createMany as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(created).toHaveLength(1);
+    expect(created[0].amount).toBe(83.33);
+    expect(created[0].installmentNumber).toBe(3);
+  });
+
+  it('remove as parcelas que sobram quando o parcelamento diminui', async () => {
+    const prisma = makeUpdatePrisma({ ...baseLoan, installmentCount: 3, installments: pending(3) });
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { installmentCount: 2 });
+
+    const del = (prisma.installment.deleteMany as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(del.where.id.in).toEqual(['i3']);
+    expect(prisma.installment.createMany).not.toHaveBeenCalled();
+  });
+
+  it('aceita vencimentos informados um a um', async () => {
+    const prisma = makeUpdatePrisma(baseLoan);
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { dueDates: ['2026-03-05', '2026-04-20'] });
+
+    const dates = (prisma.installment.update as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0].data.dueDate as Date,
+    );
+    expect(dates[0].getUTCMonth()).toBe(2); // Mar
+    expect(dates[0].getUTCDate()).toBe(5);
+    expect(dates[1].getUTCDate()).toBe(20);
+  });
+
+  it('recusa datas que não batem com o número de parcelas', async () => {
+    const prisma = makeUpdatePrisma(baseLoan);
+    const service = new LoansService(prisma);
+
+    await expect(
+      service.update('u1', 'loan1', { installmentCount: 3, dueDates: ['2026-03-05'] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('recusa mexer no dinheiro depois que uma parcela foi paga', async () => {
+    const paid = [{ ...pending(1)[0], status: 'PAID', paidAmount: 110 }, pending(2)[1]];
+    const prisma = makeUpdatePrisma({ ...baseLoan, installments: paid });
+    const service = new LoansService(prisma);
+
+    await expect(service.update('u1', 'loan1', { originalAmount: 500 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('recusa mexer no dinheiro com pagamento apenas parcial', async () => {
+    const partial = [{ ...pending(1)[0], status: 'PARTIAL', paidAmount: 40 }, pending(2)[1]];
+    const prisma = makeUpdatePrisma({ ...baseLoan, installments: partial });
+    const service = new LoansService(prisma);
+
+    await expect(service.update('u1', 'loan1', { installmentCount: 4 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('trocar o cliente continua liberado mesmo com parcela paga (não mexe no cronograma)', async () => {
+    const paid = [{ ...pending(1)[0], status: 'PAID', paidAmount: 110 }, pending(2)[1]];
+    const prisma = makeUpdatePrisma({ ...baseLoan, installments: paid });
+    (prisma.loan.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseLoan,
+      installments: paid,
+    });
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { borrowerId: 'b2' });
+
+    const data = (prisma.loan.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.borrowerId).toBe('b2');
+    expect(data.totalAmount).toBeUndefined();
+  });
+
+  it('não edita contrato de outra pessoa', async () => {
+    const prisma = makeUpdatePrisma(null);
+    const service = new LoansService(prisma);
+
+    await expect(service.update('u1', 'loan1', { originalAmount: 1 })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});

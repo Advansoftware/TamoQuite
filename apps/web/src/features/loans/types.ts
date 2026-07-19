@@ -12,6 +12,9 @@ export interface LoanInput {
   dueDates?: string[];
 }
 
+/** Everything a contract correction can change. Omitted = keeps its value. */
+export type LoanUpdateInput = Partial<LoanInput>;
+
 export interface LoanListItem {
   id: string;
   borrowerId: string;

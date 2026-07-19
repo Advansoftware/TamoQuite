@@ -13,7 +13,7 @@ import '../application/dashboard_controller.dart';
 import '../domain/dashboard_summary.dart';
 import 'widgets/installment_tile.dart';
 import 'widgets/monthly_progress_card.dart';
-import 'widgets/stat_card.dart';
+import '../../../core/widgets/tq_stat_card.dart';
 
 /// Painel de controle — espelha `DashboardView.tsx`.
 ///
@@ -160,18 +160,18 @@ class _StatGrid extends StatelessWidget {
     final brand = theme.brand;
 
     final cards = [
-      StatCard(
+      TqStatCard(
         label: 'A Receber (Mês)',
         value: Formatters.currency(summary.totalMonthlyPending),
         icon: Icons.account_balance_wallet_outlined,
       ),
-      StatCard(
+      TqStatCard(
         label: 'Recebido (Mês)',
         value: Formatters.currency(summary.receivedMonthly),
         icon: Icons.trending_up,
         valueColor: brand.neon,
       ),
-      StatCard(
+      TqStatCard(
         label: 'Inadimplentes',
         value: '${summary.overdueCount}',
         icon: Icons.warning_amber_rounded,
@@ -179,7 +179,7 @@ class _StatGrid extends StatelessWidget {
         iconBackground: theme.colorScheme.error.withValues(alpha: 0.1),
         valueColor: theme.colorScheme.error,
       ),
-      StatCard(
+      TqStatCard(
         label: 'Total a Receber',
         value: Formatters.currency(summary.totalOutstanding),
         icon: Icons.attach_money,

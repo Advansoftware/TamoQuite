@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { SubscriptionGuard } from '../common/subscription.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { LoansService, BillingOverridePatch } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
+import { UpdateLoanDto } from './dto/update-loan.dto';
 
 @UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('loans')
@@ -23,6 +24,17 @@ export class LoansController {
   @Get(':id')
   get(@CurrentUser('id') userId: string, @Param('id') id: string) {
     return this.loans.get(userId, id);
+  }
+
+  // Fixes a contract created with the wrong numbers. Money changes rebuild the
+  // parcelas, so the service rejects them once anything has been paid.
+  @Patch(':id')
+  update(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateLoanDto,
+  ) {
+    return this.loans.update(userId, id, dto);
   }
 
   // Soft delete: the contract, its parcelas and its cobranças disappear from the

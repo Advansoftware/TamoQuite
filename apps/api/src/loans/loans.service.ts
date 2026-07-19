@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { addPeriods, normalizeFrequency, parseDateOnly } from '../common/period.util';
 import { computeLoanTotals, splitIntoInstallments } from './loan-math';
 import { CreateLoanDto } from './dto/create-loan.dto';
+import { UpdateLoanDto } from './dto/update-loan.dto';
 
 const LOAN_INCLUDE = {
   borrower: true,
@@ -118,6 +119,154 @@ export class LoansService {
       },
       include: LOAN_INCLUDE,
     });
+  }
+
+  /**
+   * Corrects a contract that was created with the wrong numbers — a typo in the
+   * value, the wrong number of parcelas, dates that don't match what was agreed.
+   *
+   * Anything that changes the money rebuilds the schedule, so it is only allowed
+   * while the contract is untouched: the moment a parcela has been paid (even
+   * partially), rewriting the amounts would silently invalidate that payment.
+   * Fixing the client, on the other hand, never touches the schedule and stays
+   * available for the contract's whole life.
+   *
+   * Parcelas are reconciled in place rather than dropped and recreated, so the
+   * ones that survive keep their id — and with it their cobrança history, which
+   * a delete would cascade away.
+   */
+  async update(userId: string, id: string, dto: UpdateLoanDto) {
+    const loan = await this.prisma.loan.findFirst({
+      where: { id, userId, ...NOT_DELETED },
+      include: { installments: { orderBy: { installmentNumber: 'asc' } } },
+    });
+    if (!loan) throw new NotFoundException('Loan not found');
+
+    const touchesSchedule =
+      dto.originalAmount !== undefined ||
+      dto.interestRate !== undefined ||
+      dto.totalAmount !== undefined ||
+      dto.installmentCount !== undefined ||
+      dto.startDate !== undefined ||
+      dto.frequency !== undefined ||
+      dto.dueDates !== undefined;
+
+    // A parcela with money on it is a fact about the past; rebuilding the
+    // schedule under it would leave a payment attached to an amount that no
+    // longer exists. Undo the payments first, then edit.
+    if (touchesSchedule) {
+      const settled = loan.installments.filter(
+        (inst) => inst.paidAmount > 0 || inst.status !== 'PENDING',
+      );
+      if (settled.length > 0) {
+        throw new BadRequestException(
+          'Este contrato já tem parcelas pagas. Desfaça os pagamentos antes de alterar valores, parcelas ou datas.',
+        );
+      }
+    }
+
+    const data: Record<string, unknown> = {};
+
+    if (dto.borrowerId !== undefined && dto.borrowerId !== loan.borrowerId) {
+      const borrower = await this.prisma.borrower.findFirst({
+        where: { id: dto.borrowerId, userId },
+      });
+      if (!borrower) throw new NotFoundException('Devedor não encontrado');
+      data.borrowerId = dto.borrowerId;
+    }
+
+    if (!touchesSchedule) {
+      if (Object.keys(data).length === 0) return this.get(userId, id);
+      await this.prisma.loan.update({ where: { id }, data });
+      return this.get(userId, id);
+    }
+
+    // Rebuild from the merged state: whatever the user sent wins, everything
+    // else keeps what the contract already had.
+    const frequency = normalizeFrequency(dto.frequency ?? loan.paymentFrequency);
+    const originalAmount = dto.originalAmount ?? loan.originalAmount;
+    const installmentCount = dto.installmentCount ?? loan.installmentCount;
+    const interestRate =
+      dto.interestRate !== undefined
+        ? Math.round(dto.interestRate * 100) / 100
+        : loan.interestRate;
+
+    // Same rule as create: an explicit total is the truth, because re-deriving
+    // it from the 2-decimal rate drifts (250 → 249,98). But once the principal,
+    // the rate or the count moved, a stale stored total is no longer meaningful —
+    // only a total sent in this very request can stand in for the derived one.
+    const totalAmount =
+      dto.totalAmount !== undefined
+        ? Math.round(dto.totalAmount * 100) / 100
+        : dto.originalAmount !== undefined ||
+            dto.interestRate !== undefined ||
+            dto.installmentCount !== undefined
+          ? computeLoanTotals(originalAmount, interestRate, installmentCount).totalAmount
+          : loan.totalAmount;
+
+    const amounts = splitIntoInstallments(totalAmount, installmentCount);
+
+    if (dto.dueDates && dto.dueDates.length !== installmentCount) {
+      throw new BadRequestException('As datas de vencimento não batem com o número de parcelas');
+    }
+
+    const start = parseDateOnly(dto.startDate ?? loan.startDate);
+    const dueDates = dto.dueDates
+      ? dto.dueDates.map((d) => parseDateOnly(d))
+      : Array.from({ length: installmentCount }, (_v, idx) => addPeriods(start, frequency, idx));
+
+    const existing = loan.installments;
+    const keep = Math.min(existing.length, installmentCount);
+
+    await this.prisma.$transaction([
+      this.prisma.loan.update({
+        where: { id },
+        data: {
+          ...data,
+          originalAmount,
+          interestRate,
+          totalAmount,
+          installmentCount,
+          startDate: dueDates[0] ?? start,
+          paymentFrequency: frequency,
+        },
+      }),
+      // Reused rows: same id, corrected numbers.
+      ...existing.slice(0, keep).map((inst, idx) =>
+        this.prisma.installment.update({
+          where: { id: inst.id },
+          data: { installmentNumber: idx + 1, amount: amounts[idx], dueDate: dueDates[idx] },
+        }),
+      ),
+      // The contract grew — the extra parcelas are new rows.
+      ...(installmentCount > existing.length
+        ? [
+            this.prisma.installment.createMany({
+              data: Array.from({ length: installmentCount - existing.length }, (_v, i) => {
+                const idx = existing.length + i;
+                return {
+                  loanId: id,
+                  installmentNumber: idx + 1,
+                  dueDate: dueDates[idx],
+                  amount: amounts[idx],
+                  status: 'PENDING',
+                };
+              }),
+            }),
+          ]
+        : []),
+      // The contract shrank — the parcelas past the new end go away. They are all
+      // PENDING (the guard above guarantees it), so nothing paid is lost.
+      ...(existing.length > installmentCount
+        ? [
+            this.prisma.installment.deleteMany({
+              where: { id: { in: existing.slice(installmentCount).map((i) => i.id) } },
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.get(userId, id);
   }
 
   /**

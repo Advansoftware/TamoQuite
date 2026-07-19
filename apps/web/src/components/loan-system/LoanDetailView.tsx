@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   ChevronDown,
   CalendarDays,
+  Pencil,
 } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
@@ -33,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { ActionButton } from '@/components/ui/action-button';
 import { ChargeButton } from './ChargeButton';
 import { ShareContractButton } from './ShareContractButton';
+import { EditLoanDialog } from './EditLoanDialog';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusBadge } from './StatusBadge';
 
@@ -118,6 +120,7 @@ export function LoanDetailView() {
   const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [dueDateValue, setDueDateValue] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['loan', selectedLoanId],
@@ -237,6 +240,11 @@ export function LoanDetailView() {
   const remainingAmount = loan.installments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
   const progressPercent = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
 
+  // Correcting a contract rebuilds every parcela, which would strand any payment
+  // already recorded against the old amounts. So it is offered only while the
+  // whole schedule is still pending.
+  const canEdit = loan.installments.every((i) => i.status === 'PENDING' && !i.paidAmount);
+
   return (
     <div className="space-y-4 pb-6">
       {/* Botão de Voltar */}
@@ -248,12 +256,32 @@ export function LoanDetailView() {
           <ArrowLeft className="w-4 h-4 text-neon" />
           Voltar
         </button>
-        <ShareContractButton
-          loanId={loan.id}
-          borrowerName={loan.borrower.name}
-          borrowerPhone={loan.borrower.whatsapp}
-        />
+        <div className="flex items-center gap-2">
+          {/* Editing rewrites the parcelas, so it is only offered while the
+              contract is untouched. The API enforces the same rule. */}
+          {canEdit && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 h-11 sm:h-auto sm:py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
+            >
+              <Pencil className="w-4 h-4 text-neon" />
+              Editar
+            </button>
+          )}
+          <ShareContractButton
+            loanId={loan.id}
+            borrowerName={loan.borrower.name}
+            borrowerPhone={loan.borrower.whatsapp}
+          />
+        </div>
       </div>
+
+      <EditLoanDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        loan={loan}
+        onSuccess={invalidate}
+      />
 
       <LoanBillingCard
         loanId={loan.id}

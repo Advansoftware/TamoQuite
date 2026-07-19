@@ -53,15 +53,49 @@ class ApiClient {
   /// assinatura na hora, sem esperar o próximo `/me`.
   void Function()? onSubscriptionInactive;
 
-  Future<Map<String, dynamic>> get(String path) =>
-      _send(() => _dio.get<dynamic>(path));
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    return _asMap(
+      await _send(() => _dio.get<dynamic>(path, queryParameters: query)),
+    );
+  }
 
-  Future<Map<String, dynamic>> post(String path, [Object? body]) =>
-      _send(() => _dio.post<dynamic>(path, data: body));
+  /// Variante de [get] para os endpoints de coleção (`/api/borrowers`,
+  /// `/api/loans`), que respondem com um array JSON na raiz.
+  Future<List<Map<String, dynamic>>> getList(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    final data = await _send(
+      () => _dio.get<dynamic>(path, queryParameters: query),
+    );
+    if (data is! List) return const [];
+    return data.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
 
-  Future<Map<String, dynamic>> _send(
-    Future<Response<dynamic>> Function() request,
-  ) async {
+  Future<Map<String, dynamic>> post(String path, [Object? body]) async {
+    return _asMap(await _send(() => _dio.post<dynamic>(path, data: body)));
+  }
+
+  Future<Map<String, dynamic>> put(String path, [Object? body]) async {
+    return _asMap(await _send(() => _dio.put<dynamic>(path, data: body)));
+  }
+
+  Future<Map<String, dynamic>> patch(String path, [Object? body]) async {
+    return _asMap(await _send(() => _dio.patch<dynamic>(path, data: body)));
+  }
+
+  /// `DELETE` — em toda a API isso é *soft delete*, nunca remoção de linha
+  /// (ver `borrowers.service.ts` e `loans.service.ts`). O que muda é o quanto
+  /// a ação é reversível, e quem chama é que precisa dizer isso ao usuário.
+  Future<Map<String, dynamic>> delete(String path) async {
+    return _asMap(await _send(() => _dio.delete<dynamic>(path)));
+  }
+
+  /// Corpo de sucesso ainda cru: `Map` para recursos, `List` para coleções.
+  Future<Object?> _send(Future<Response<dynamic>> Function() request) async {
     final Response<dynamic> response;
     try {
       response = await request();
@@ -70,15 +104,15 @@ class ApiClient {
     }
 
     final status = response.statusCode ?? 0;
-    if (status >= 200 && status < 300) {
-      final data = response.data;
-      if (data is Map<String, dynamic>) return data;
-      // Endpoints que respondem 204 ou corpo não-objeto.
-      return const {};
-    }
+    if (status >= 200 && status < 300) return response.data;
 
     throw _toApiException(response);
   }
+
+  /// Endpoints que respondem 204 ou corpo não-objeto viram um mapa vazio —
+  /// quem chama trata ausência de campo, não um tipo inesperado.
+  static Map<String, dynamic> _asMap(Object? data) =>
+      data is Map<String, dynamic> ? data : const {};
 
   ApiException _toApiException(Response<dynamic> response) {
     final status = response.statusCode ?? 0;

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_brand_colors.dart';
+import '../theme/app_brand_colors.dart';
 
-/// Card de métrica do painel: ícone em quadrado colorido, rótulo pequeno e
+/// Card de métrica (painel, resumo do cliente): ícone em quadrado colorido, rótulo pequeno e
 /// valor em destaque — como os cards de `DashboardView.tsx`
 /// (`bg-surface rounded-2xl p-4 border border-border`).
-class StatCard extends StatelessWidget {
-  const StatCard({
+class TqStatCard extends StatelessWidget {
+  const TqStatCard({
     required this.label,
     required this.value,
     required this.icon,
