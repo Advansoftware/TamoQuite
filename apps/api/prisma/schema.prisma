@@ -82,6 +82,7 @@ model Loan {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   installments     Installment[]
+  share            LoanShare?
 
   // Billing / cobrança
   doNotCharge         Boolean  @default(false)
@@ -198,6 +199,23 @@ model BillingSettings {
   overdueTemplate     String     @db.Text
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+}
+
+/// Public, read-only link to a contract. The token is the only credential, so it
+/// is generated from crypto random bytes — never derived from the loan id.
+/// Revoking sets `revokedAt` (the row stays, like everything else in the system);
+/// a new link for the same contract reuses this row with a fresh token.
+model LoanShare {
+  id           String    @id @default(cuid())
+  loanId       String    @unique
+  loan         Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+  viewCount    Int       @default(0)
+  lastViewedAt DateTime?
+
+  @@index([token])
 }
 
 model ChargeLog {

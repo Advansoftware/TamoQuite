@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ActionButton } from '@/components/ui/action-button';
 import { ChargeButton } from './ChargeButton';
+import { ShareContractButton } from './ShareContractButton';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusBadge } from './StatusBadge';
 
@@ -219,7 +220,7 @@ export function LoanDetailView() {
   return (
     <div className="space-y-4 pb-6">
       {/* Botão de Voltar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <button
           onClick={() => router.back()}
           className="flex items-center justify-center gap-1.5 px-3.5 h-11 sm:h-auto sm:py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
@@ -227,6 +228,11 @@ export function LoanDetailView() {
           <ArrowLeft className="w-4 h-4 text-neon" />
           Voltar
         </button>
+        <ShareContractButton
+          loanId={loan.id}
+          borrowerName={loan.borrower.name}
+          borrowerPhone={loan.borrower.whatsapp}
+        />
       </div>
 
       <LoanBillingCard

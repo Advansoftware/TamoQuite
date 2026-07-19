@@ -15,6 +15,7 @@ import { OutboundModule } from './outbound/outbound.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { ReportsModule } from './reports/reports.module';
+import { ShareModule } from './share/share.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ReportsModule } from './reports/reports.module';
     BillingModule,
     WebhookModule,
     ReportsModule,
+    ShareModule,
   ],
 })
 export class AppModule {}

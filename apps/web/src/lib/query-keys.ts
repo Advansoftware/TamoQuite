@@ -5,6 +5,7 @@ export const qk = {
   borrower: (id: string) => ['borrowers', id] as const,
   loans: ['loans'] as const,
   loan: (id: string) => ['loans', id] as const,
+  loanShare: (id: string) => ['loans', id, 'share'] as const,
   dashboard: ['dashboard'] as const,
   reportSummary: (months: number) => ['reports', 'summary', months] as const,
   subscription: ['subscription'] as const,

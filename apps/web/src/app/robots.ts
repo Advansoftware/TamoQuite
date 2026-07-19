@@ -18,6 +18,8 @@ export default function robots(): MetadataRoute.Robots {
           '/admin',
           '/settings',
           '/redefinir-senha',
+          // Contract links are private-by-token — must never be crawled.
+          '/share',
         ],
       },
     ],
