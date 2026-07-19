@@ -80,8 +80,8 @@ export default function DeleteAccountPage() {
             </ol>
             <p className="pt-2">
               Não consegue acessar sua conta? Escreva para{' '}
-              <a href="mailto:suporte@tamoquite.com" className="text-neon hover:underline">
-                suporte@tamoquite.com
+              <a href="mailto:contato@tamoquite.app" className="text-neon hover:underline">
+                contato@tamoquite.app
               </a>{' '}
               do e-mail cadastrado, com o assunto &quot;Excluir minha conta&quot;. Confirmamos sua
               identidade e concluímos a exclusão em até 7 dias úteis.
@@ -160,8 +160,8 @@ export default function DeleteAccountPage() {
           <Section title="Dúvidas">
             <p>
               Qualquer dúvida sobre a exclusão ou sobre seus dados, fale com a gente em{' '}
-              <a href="mailto:suporte@tamoquite.com" className="text-neon hover:underline">
-                suporte@tamoquite.com
+              <a href="mailto:contato@tamoquite.app" className="text-neon hover:underline">
+                contato@tamoquite.app
               </a>
               . Veja também nossa{' '}
               <Link href="/privacidade" className="text-neon hover:underline">

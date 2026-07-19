@@ -150,8 +150,8 @@ export default function PrivacyPolicyPage() {
           <Section title="9. Contato">
             <p>
               Dúvidas sobre esta Política ou sobre seus dados? Fale conosco em{' '}
-              <a href="mailto:suporte@tamoquite.com" className="text-neon hover:underline">
-                suporte@tamoquite.com
+              <a href="mailto:contato@tamoquite.app" className="text-neon hover:underline">
+                contato@tamoquite.app
               </a>
               .
             </p>

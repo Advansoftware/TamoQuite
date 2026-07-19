@@ -8,7 +8,7 @@ import * as nodemailer from 'nodemailer';
  * flows like password reset still work in dev / before SMTP is wired up.
  *
  * Env: SMTP_HOST, SMTP_PORT, SMTP_SECURE ("true"/"false"), SMTP_USER, SMTP_PASS,
- *      MAIL_FROM (e.g. "TamoQuite <no-reply@tamoquite.com>").
+ *      MAIL_FROM (e.g. "TamoQuite <no-reply@tamoquite.app>").
  */
 @Injectable()
 export class MailService {
@@ -23,7 +23,7 @@ export class MailService {
     const user = config.get<string>('SMTP_USER');
     const pass = config.get<string>('SMTP_PASS');
     const secure = String(config.get<string>('SMTP_SECURE') || '').toLowerCase() === 'true';
-    this.from = config.get<string>('MAIL_FROM') || 'TamoQuite <no-reply@tamoquite.com>';
+    this.from = config.get<string>('MAIL_FROM') || 'TamoQuite <no-reply@tamoquite.app>';
 
     this.enabled = !!host;
     this.transporter = this.enabled
