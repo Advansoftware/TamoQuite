@@ -21,5 +21,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'yearly',
       priority: 0.3,
     },
+    {
+      // Google Play requires this URL to be publicly reachable, so it stays
+      // indexable — just at the lowest priority, since it is not a page anyone
+      // should land on by accident.
+      url: `${siteUrl}/excluir-conta`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.1,
+    },
   ];
 }

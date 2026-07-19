@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -37,7 +37,14 @@ export class ShareService {
    * always rotates the token so a previously shared URL stays dead.
    */
   async enable(userId: string, loanId: string) {
-    await this.assertOwned(userId, loanId);
+    const loan = await this.assertOwned(userId, loanId);
+
+    // The public view refuses a deactivated client's contract, so handing out a
+    // link here would only produce a URL that 404s for whoever receives it.
+    if (!loan.borrower.isActive) {
+      throw new BadRequestException('Este cliente está desativado. Reative-o para compartilhar.');
+    }
+
     const existing = await this.prisma.loanShare.findUnique({ where: { loanId } });
 
     if (existing && !existing.revokedAt) {
@@ -86,8 +93,9 @@ export class ShareService {
     });
 
     // Deleting a contract revokes its link, but check the flag directly too so a
-    // deleted contract can never be served publicly.
-    if (!share || share.revokedAt || share.loan.deletedAt) {
+    // deleted contract can never be served publicly. A deactivated client's link
+    // goes dark as well, and comes back if the user reactivates them.
+    if (!share || share.revokedAt || share.loan.deletedAt || !share.loan.borrower.isActive) {
       throw new NotFoundException('Link indisponível');
     }
 
@@ -156,8 +164,9 @@ export class ShareService {
   private async assertOwned(userId: string, loanId: string) {
     const loan = await this.prisma.loan.findFirst({
       where: { id: loanId, userId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, borrower: { select: { isActive: true } } },
     });
     if (!loan) throw new NotFoundException('Loan not found');
+    return loan;
   }
 }

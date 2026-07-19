@@ -22,7 +22,9 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Smartphone, MessageSquare, Loader2, CheckCircle2, XCircle, QrCode, CreditCard, Calendar, ExternalLink, AlertTriangle, Shield, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Smartphone, MessageSquare, Loader2, CheckCircle2, XCircle, QrCode, CreditCard, Calendar, ExternalLink, AlertTriangle, Shield, Plus, Trash2, RefreshCw, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 const PLACEHOLDER_HINT =
@@ -834,6 +836,124 @@ export function SettingsView() {
           </TabsContent>
         )}
       </Tabs>
+
+      <DangerZone />
+    </div>
+  );
+}
+
+/**
+ * Account deletion. Required to exist and be findable (Google Play), but it is
+ * the single most destructive action in the app — so it sits at the very bottom,
+ * outside the tabs, collapsed, and muted until opened. Present, not inviting.
+ */
+function DangerZone() {
+  const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const logout = useAppStore((s) => s.logout);
+
+  const handleDelete = async () => {
+    if (!password) {
+      toast.error('Digite sua senha para confirmar');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await apiPost('/api/auth/account/delete', { password });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+
+      toast.success('Conta excluída. Sentiremos sua falta.');
+      // The session is already dead server-side; clear it here so the app drops
+      // straight to the login screen instead of retrying with a stale token.
+      logout();
+      window.location.href = '/';
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao excluir a conta');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="pt-8 mt-4 border-t border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+      >
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        Zona de risco
+      </button>
+
+      {open && (
+        <div className="mt-3 rounded-xl border border-danger/20 bg-danger/5 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-danger">Excluir minha conta</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Sua conta é encerrada na hora, a assinatura é cancelada e as cobranças param. Seus
+              contratos, contatos e histórico ficam guardados e inacessíveis por{' '}
+              <strong className="text-foreground">90 dias</strong> e depois são apagados em
+              definitivo, sem como recuperar.
+            </p>
+            <Link
+              href="/excluir-conta"
+              className="text-xs text-neon hover:underline inline-block mt-2"
+            >
+              Ler as regras completas
+            </Link>
+          </div>
+          <Button
+            onClick={() => { setPassword(''); setConfirmOpen(true); }}
+            className="bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 font-semibold rounded-xl h-10 text-xs cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Excluir minha conta
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-danger">Excluir sua conta</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Esta ação encerra sua conta agora e apaga tudo em 90 dias. Não dá para desfazer depois
+              desse prazo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">Confirme sua senha</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Sua senha atual"
+              className="bg-surface-elevated border-border text-foreground rounded-xl h-11"
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmOpen(false)}
+              className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1 cursor-pointer"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={submitting || !password}
+              className="bg-danger text-white hover:bg-danger/90 font-semibold rounded-xl flex-1 cursor-pointer"
+            >
+              {submitting ? 'Excluindo...' : 'Excluir conta'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

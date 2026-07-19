@@ -19,8 +19,8 @@ export class ReportsService {
     const span = Math.min(Math.max(months, 1), 24);
 
     const loans = await this.prisma.loan.findMany({
-      // Deleted contracts are out of every figure on this screen.
-      where: { userId, deletedAt: null },
+      // Deleted contracts and deactivated clients are out of every figure here.
+      where: { userId, deletedAt: null, borrower: { isActive: true } },
       select: {
         id: true,
         status: true,

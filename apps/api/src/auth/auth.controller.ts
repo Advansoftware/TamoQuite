@@ -21,7 +21,8 @@ import { MailService } from '../mail/mail.service';
 import { buildPasswordResetEmail } from '../mail/templates';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
-import { SUPER_ADMIN_EMAIL } from '../common/constants';
+import { SUPER_ADMIN_EMAIL, ACCOUNT_RETENTION_DAYS } from '../common/constants';
+import { StripeService } from '../stripe/stripe.service';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +31,7 @@ export class AuthController {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly stripe: StripeService,
   ) {}
 
   private webBaseUrl(): string {
@@ -132,6 +134,64 @@ export class AuthController {
     }
 
     return { success: true };
+  }
+
+  /**
+   * Self-service account deletion (required by the Google Play data-safety rules).
+   *
+   * Deactivates immediately — the account stops working right away, since login
+   * already refuses an inactive user — and the rows are erased for good by the
+   * purge job after the retention window. Deliberately NOT behind
+   * SubscriptionGuard: someone whose subscription lapsed must still be able to
+   * delete their account.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('account/delete')
+  async deleteAccount(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { password?: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!body.password) {
+      throw new BadRequestException('Confirme sua senha para excluir a conta');
+    }
+
+    // The super admin owns the platform; deleting it would orphan every account.
+    if (user.email === SUPER_ADMIN_EMAIL) {
+      throw new ForbiddenException('A conta de administrador da plataforma não pode ser excluída.');
+    }
+
+    const dbUser = await this.prisma.systemUser.findUnique({ where: { id: user.id } });
+    if (!dbUser) throw new UnauthorizedException('Usuário não encontrado');
+
+    const valid = await bcrypt.compare(body.password, dbUser.passwordHash);
+    if (!valid) throw new UnauthorizedException('Senha incorreta');
+
+    // Stop the money first. If this failed silently the user would keep being
+    // charged for an account they just deleted, which is the worst outcome here.
+    if (dbUser.stripeSubscriptionId) {
+      try {
+        await this.stripe.client.subscriptions.cancel(dbUser.stripeSubscriptionId);
+      } catch (err: unknown) {
+        // Already cancelled or missing on Stripe's side is fine; anything else
+        // is worth knowing about, but must not block the deletion.
+        console.error(`[account/delete] falha ao cancelar assinatura de ${user.id}:`, err);
+      }
+    }
+
+    await this.prisma.systemUser.update({
+      where: { id: user.id },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        subscriptionStatus: 'canceled',
+        stripeSubscriptionId: null,
+      },
+    });
+
+    res.clearCookie('cf_session', { path: '/' });
+
+    return { success: true, purgeAfterDays: ACCOUNT_RETENTION_DAYS };
   }
 
   // Public self-service signup

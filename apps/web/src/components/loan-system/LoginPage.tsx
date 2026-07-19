@@ -255,6 +255,10 @@ export function LoginPage({ onBackToLanding }: { onBackToLanding?: () => void })
           <Link href="/privacidade" className="hover:text-muted-foreground transition-colors underline underline-offset-2">
             Política de Privacidade
           </Link>
+          {' · '}
+          <Link href="/excluir-conta" className="hover:text-muted-foreground transition-colors underline underline-offset-2">
+            Excluir conta
+          </Link>
         </p>
       </div>
     </div>

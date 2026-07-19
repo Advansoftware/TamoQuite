@@ -119,6 +119,18 @@ export function BorrowerDetailView() {
 
   return (
     <div className="space-y-4 pb-6">
+      {/* This is the one place a deactivated client's contracts still show, so
+          say plainly that they're hidden everywhere else. */}
+      {borrower.isActive === false && (
+        <div className="bg-warning/10 border border-warning/20 rounded-2xl p-4">
+          <p className="text-sm font-semibold text-warning">Cliente desativado</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Os contratos e parcelas abaixo estão ocultos no painel, nos relatórios e nos totais, e
+            nada é cobrado. Reative o cliente na aba &quot;Desativados&quot; para trazer tudo de volta.
+          </p>
+        </div>
+      )}
+
       {/* Borrower Info */}
       <div className="bg-surface rounded-2xl p-4 border border-border">
         <div className="flex items-center gap-3 mb-4">

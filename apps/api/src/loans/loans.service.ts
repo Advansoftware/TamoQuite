@@ -12,6 +12,21 @@ const LOAN_INCLUDE = {
 /** Soft-deleted contracts are invisible everywhere. Every read starts from this. */
 export const NOT_DELETED = { deletedAt: null } as const;
 
+/**
+ * What counts as a live contract for anything that lists or totals on its own:
+ * not deleted, and belonging to a client who is still active.
+ *
+ * Deactivating a client is reversible, so this is expressed as a filter over the
+ * relation instead of a flag copied onto the loans. Reactivating flips one field
+ * on the Borrower and every contract, parcela and total comes back exactly as it
+ * was — there is no unwind step that could miss a row.
+ *
+ * Lookups by id (loan detail, a single parcela) deliberately use NOT_DELETED
+ * only: you can still open a deactivated client's contract from their own page,
+ * you just never stumble into it from a list or a total.
+ */
+export const VISIBLE_LOAN = { deletedAt: null, borrower: { isActive: true } } as const;
+
 // Keys the per-contract billing override endpoint is allowed to patch.
 const BILLING_KEYS = [
   'doNotCharge',
@@ -32,7 +47,7 @@ export class LoansService {
 
   list(userId: string) {
     return this.prisma.loan.findMany({
-      where: { userId, ...NOT_DELETED },
+      where: { userId, ...VISIBLE_LOAN },
       orderBy: { createdAt: 'desc' },
       include: LOAN_INCLUDE,
     });

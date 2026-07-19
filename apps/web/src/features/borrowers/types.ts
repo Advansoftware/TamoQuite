@@ -22,6 +22,8 @@ export interface BorrowerDetail {
   whatsapp: string;
   notes: string | null;
   createdAt: string;
+  /** false → os contratos abaixo estão ocultos no resto do app e não são cobrados. */
+  isActive: boolean;
   loans: Array<{
     id: string;
     originalAmount: number;

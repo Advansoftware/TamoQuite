@@ -79,7 +79,7 @@ export function BorrowersView() {
     if (!selected) return;
     try {
       await deactivateMut.mutateAsync(selected.id);
-      toast.success('Cliente desativado. Ele fica guardado na aba "Desativados".');
+      toast.success('Cliente desativado. Os contratos e parcelas dele saíram de tudo.');
       setDeactivateOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
@@ -331,10 +331,11 @@ export function BorrowersView() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-foreground">Desativar cliente</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              <strong className="text-foreground">{selected?.name}</strong> sai da sua lista e as cobranças
-              automáticas param. <strong className="text-foreground">Nada é apagado</strong>: os contratos e o
-              histórico continuam guardados, e você pode trazer o cliente de volta a qualquer momento na
-              aba &quot;Desativados&quot;.
+              <strong className="text-foreground">{selected?.name}</strong> some da sua lista junto com os
+              contratos e as parcelas dele: saem do painel, dos relatórios, dos totais e do histórico de
+              cobranças, e nada mais é cobrado.{' '}
+              <strong className="text-foreground">Nada é apagado</strong> — abra o cliente na aba
+              &quot;Desativados&quot; para ver os contratos, e ao reativar tudo volta como estava.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

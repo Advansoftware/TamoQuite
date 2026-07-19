@@ -137,6 +137,34 @@ describe('LoansService.create', () => {
   });
 });
 
+describe('LoansService.list — visibilidade', () => {
+  it('hides contracts of deleted loans and of deactivated clients', async () => {
+    const prisma = makePrisma();
+    (prisma.loan.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    const service = new LoansService(prisma);
+
+    await service.list('u1');
+
+    const where = (prisma.loan.findMany as ReturnType<typeof vi.fn>).mock.calls[0][0].where;
+    expect(where.deletedAt).toBeNull();
+    // Filtering through the relation is what makes reactivating a client
+    // restore every contract without any unwind step.
+    expect(where.borrower).toEqual({ isActive: true });
+  });
+
+  it('still opens a single contract of a deactivated client (reachable from their page)', async () => {
+    const prisma = makePrisma();
+    (prisma.loan.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'loan1' });
+    const service = new LoansService(prisma);
+
+    await service.get('u1', 'loan1');
+
+    const where = (prisma.loan.findFirst as ReturnType<typeof vi.fn>).mock.calls[0][0].where;
+    expect(where.deletedAt).toBeNull();
+    expect(where.borrower).toBeUndefined();
+  });
+});
+
 describe('LoansService.remove — exclusão (soft delete)', () => {
   function makeDeletePrisma(loan: unknown) {
     return {

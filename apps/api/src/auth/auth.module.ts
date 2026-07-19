@@ -5,11 +5,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { AccountPurgeCron } from './account-purge.cron';
 import { MailModule } from '../mail/mail.module';
+import { StripeModule } from '../stripe/stripe.module';
 
 @Module({
   imports: [
     MailModule,
+    // Deleting an account cancels its subscription.
+    StripeModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,7 +28,7 @@ import { MailModule } from '../mail/mail.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, AccountPurgeCron],
   exports: [AuthService],
 })
 export class AuthModule {}
