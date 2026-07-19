@@ -16,7 +16,7 @@ export interface ReportSummary {
     /** Capital próprio ainda não devolvido nos contratos em andamento. */
     activeCapital: number;
   };
-  byStatus: { ACTIVE: number; COMPLETED: number; CANCELED: number };
+  byStatus: { ACTIVE: number; COMPLETED: number };
   monthly: { key: string; label: string; received: number }[];
 }
 

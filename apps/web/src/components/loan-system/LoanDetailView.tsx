@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { LoanBillingCard } from './LoanBillingCard';
-import { apiFetch, apiPut, apiPost, apiDelete, getApiError } from '@/lib/api';
+import { apiFetch, apiPut, apiPost, apiPatch, apiDelete, getApiError } from '@/lib/api';
 import {
   formatCurrency,
   formatDate,
@@ -23,6 +23,7 @@ import {
   Undo2,
   ArrowLeft,
   ChevronDown,
+  CalendarDays,
 } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
@@ -115,6 +116,8 @@ export function LoanDetailView() {
   const [undoRollOpen, setUndoRollOpen] = useState(false);
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
   const [undoPartialPaymentId, setUndoPartialPaymentId] = useState<string | null>(null);
+  const [dueDateOpen, setDueDateOpen] = useState(false);
+  const [dueDateValue, setDueDateValue] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['loan', selectedLoanId],
@@ -171,6 +174,23 @@ export function LoanDetailView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const dueDateMutation = useMutation({
+    mutationFn: async ({ installmentId, dueDate }: { installmentId: string; dueDate: string }) => {
+      const res = await apiPatch(`/api/installments/${installmentId}/due-date`, { dueDate });
+      const errMsg = await getApiError(res);
+      if (errMsg) throw new Error(errMsg);
+    },
+    onSuccess: () => { toast.success('Vencimento alterado!'); setDueDateOpen(false); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /** Opens the date editor pre-filled with the installment's current due date. */
+  const openDueDate = (inst: Installment) => {
+    setSelectedInstallment(inst);
+    setDueDateValue(inst.dueDate.split('T')[0]);
+    setDueDateOpen(true);
+  };
+
   const undoPaymentMutation = useMutation({
     mutationFn: async () => {
       if (!selectedInstallment) return;
@@ -197,7 +217,7 @@ export function LoanDetailView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const anySubmitting = payFullMutation.isPending || payPartialMutation.isPending || payInterestMutation.isPending || rollRemainingMutation.isPending || undoPaymentMutation.isPending;
+  const anySubmitting = payFullMutation.isPending || payPartialMutation.isPending || payInterestMutation.isPending || rollRemainingMutation.isPending || undoPaymentMutation.isPending || dueDateMutation.isPending;
 
   if (isLoading) {
     return (
@@ -335,7 +355,20 @@ export function LoanDetailView() {
                     <div>
                       <p className="text-sm font-semibold text-foreground">{formatCurrency(inst.amount)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(inst.dueDate)}
+                        {/* A settled parcela's date is part of the record; only
+                            open ones can be moved. */}
+                        {inst.status === 'PAID' ? (
+                          formatDate(inst.dueDate)
+                        ) : (
+                          <button
+                            onClick={() => openDueDate(inst)}
+                            title="Alterar vencimento"
+                            className="inline-flex items-center gap-1 hover:text-neon transition-colors cursor-pointer"
+                          >
+                            {formatDate(inst.dueDate)}
+                            <CalendarDays className="w-3 h-3" />
+                          </button>
+                        )}
                         {inst.status === 'PENDING' && days >= 0 && (
                           <span className="text-muted-foreground"> · {getDaysLabel(days)}</span>
                         )}
@@ -758,6 +791,51 @@ export function LoanDetailView() {
               className="bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 font-semibold rounded-xl flex-1 cursor-pointer"
             >
               {undoPaymentMutation.isPending ? 'Processando...' : 'Desfazer Pagamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Due date Dialog */}
+      <Dialog open={dueDateOpen} onOpenChange={setDueDateOpen}>
+        <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Alterar vencimento</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Parcela {selectedInstallment?.installmentNumber} de {loan.installmentCount}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">Nova data de vencimento</label>
+            <Input
+              type="date"
+              value={dueDateValue}
+              onChange={(e) => setDueDateValue(e.target.value)}
+              className="bg-surface-elevated border-border text-foreground rounded-xl h-11"
+            />
+            <p className="text-xs text-muted-foreground">
+              Só esta parcela muda de data. As outras e os valores continuam como estão.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setDueDateOpen(false)}
+              className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1 cursor-pointer"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                selectedInstallment &&
+                dueDateMutation.mutate({ installmentId: selectedInstallment.id, dueDate: dueDateValue })
+              }
+              disabled={anySubmitting || !dueDateValue}
+              className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
+            >
+              {dueDateMutation.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>

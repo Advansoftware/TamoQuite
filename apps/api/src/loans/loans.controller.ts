@@ -25,21 +25,12 @@ export class LoansController {
     return this.loans.get(userId, id);
   }
 
-  // Kept as DELETE for existing clients, but it only cancels — a contract's
-  // installments and history are never erased.
+  // Soft delete: the contract, its parcelas and its cobranças disappear from the
+  // app for good. The rows are kept in the database only for auditing, and there
+  // is deliberately no route to bring one back.
   @Delete(':id')
-  cancel(@CurrentUser('id') userId: string, @Param('id') id: string) {
-    return this.loans.cancel(userId, id);
-  }
-
-  @Post(':id/cancel')
-  cancelExplicit(@CurrentUser('id') userId: string, @Param('id') id: string) {
-    return this.loans.cancel(userId, id);
-  }
-
-  @Post(':id/reactivate')
-  reactivate(@CurrentUser('id') userId: string, @Param('id') id: string) {
-    return this.loans.reactivate(userId, id);
+  remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.loans.remove(userId, id);
   }
 
   // Per-contract billing override + "do not charge"

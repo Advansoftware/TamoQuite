@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { SubscriptionGuard } from '../common/subscription.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { addPeriods } from '../common/period.util';
+import { addPeriods, parseDateOnly } from '../common/period.util';
 
 @UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('installments')
@@ -24,7 +24,9 @@ export class InstallmentsController {
 
   private async findOwned(userId: string, id: string, includeLoanInstallments = false) {
     const installment = await this.prisma.installment.findFirst({
-      where: { id },
+      // Parcelas of a deleted contract no longer exist as far as the app is
+      // concerned — they can't be read, paid or charged.
+      where: { id, loan: { deletedAt: null } },
       include: {
         loan: includeLoanInstallments ? { include: { installments: true } } : true,
       },
@@ -351,6 +353,43 @@ export class InstallmentsController {
       data: { status: 'PARTIAL', paidAmount: interestAmount, paidAt: new Date() },
     });
     return { success: true, rolled: false, updated };
+  }
+
+  /**
+   * Moves a single installment's due date. Used when a debtor arranges to pay on
+   * a different day than the schedule produced — only this parcela moves, the
+   * others keep their dates and the amounts are untouched.
+   */
+  @Patch(':id/due-date')
+  async setDueDate(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() body: { dueDate?: string },
+  ) {
+    const installment = await this.findOwned(userId, id);
+    if (!body.dueDate) throw new BadRequestException('Data de vencimento obrigatória');
+
+    const dueDate = parseDateOnly(body.dueDate);
+    if (Number.isNaN(dueDate.getTime())) throw new BadRequestException('Data inválida');
+
+    // A paid installment's date is part of the settled record; moving it would
+    // rewrite when the money was due after the fact.
+    if (installment.status === 'PAID') {
+      throw new BadRequestException('Parcela quitada não tem o vencimento alterado');
+    }
+
+    // The stored status is a cache of "is this past due" — recompute it so a
+    // parcela pushed into the future stops showing as atrasada, and vice versa.
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const stillOpen = installment.status === 'PENDING' || installment.status === 'OVERDUE';
+    const status = stillOpen
+      ? dueDate < todayStart
+        ? 'OVERDUE'
+        : 'PENDING'
+      : installment.status;
+
+    return this.prisma.installment.update({ where: { id }, data: { dueDate, status } });
   }
 
   // Mute / unmute charging for a single installment

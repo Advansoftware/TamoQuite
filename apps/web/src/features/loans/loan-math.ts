@@ -21,6 +21,19 @@ export function calcFromRate(
   return { total, pmt: installments > 0 ? total / installments : 0 };
 }
 
+/**
+ * Splits a total into installments that add up to EXACTLY the total — the same
+ * rule the backend persists with (see api loan-math.ts). Kept in sync so the
+ * preview never promises a parcela the contract won't have.
+ */
+export function splitIntoInstallments(total: number, count: number): number[] {
+  if (count <= 0) return [];
+  const totalCents = Math.round(total * 100);
+  const base = Math.floor(totalCents / count);
+  const remainder = totalCents - base * count;
+  return Array.from({ length: count }, (_v, idx) => (base + (idx < remainder ? 1 : 0)) / 100);
+}
+
 /** The per-period rate (as a %) that makes `principal` reach `target` over `installments`. */
 export function calcRateFromTotal(principal: number, target: number, installments: number): number {
   if (principal <= 0 || installments <= 0) return 0;

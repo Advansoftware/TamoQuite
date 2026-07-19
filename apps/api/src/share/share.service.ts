@@ -85,7 +85,11 @@ export class ShareService {
       },
     });
 
-    if (!share || share.revokedAt) throw new NotFoundException('Link indisponível');
+    // Deleting a contract revokes its link, but check the flag directly too so a
+    // deleted contract can never be served publicly.
+    if (!share || share.revokedAt || share.loan.deletedAt) {
+      throw new NotFoundException('Link indisponível');
+    }
 
     // Best-effort view counter; a failure here must never block the read.
     this.prisma.loanShare
@@ -150,7 +154,10 @@ export class ShareService {
   }
 
   private async assertOwned(userId: string, loanId: string) {
-    const loan = await this.prisma.loan.findFirst({ where: { id: loanId, userId }, select: { id: true } });
+    const loan = await this.prisma.loan.findFirst({
+      where: { id: loanId, userId, deletedAt: null },
+      select: { id: true },
+    });
     if (!loan) throw new NotFoundException('Loan not found');
   }
 }

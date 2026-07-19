@@ -86,8 +86,22 @@ export function SharedContractView({ token }: { token: string }) {
   }
 
   const { lender, borrower, contract, summary, installments } = data;
-  const canceled = contract.status === 'CANCELED';
+  // A deleted contract's link is revoked and the endpoint 404s, so nothing
+  // cancelled ever reaches this view — only "em dia" or "quitado".
   const completed = contract.status === 'COMPLETED';
+
+  // Read the parcela values off the installments themselves. Dividing the total
+  // by the count re-introduces the rounding gap the contract was built to avoid
+  // (250 in 3x would read "3x de 83,33", which adds up to 249,99).
+  const amounts = installments.map((i) => i.amount);
+  const minAmount = Math.min(...amounts);
+  const maxAmount = Math.max(...amounts);
+  const installmentLabel =
+    amounts.length === 0
+      ? formatCurrency(0)
+      : minAmount === maxAmount
+        ? formatCurrency(minAmount)
+        : `${formatCurrency(maxAmount)} a ${formatCurrency(minAmount)}`;
 
   return (
     <Shell>
@@ -104,15 +118,10 @@ export function SharedContractView({ token }: { token: string }) {
           </p>
         </div>
 
-        {canceled && (
-          <Banner tone="danger">
-            Este contrato foi cancelado. Ele fica registrado aqui apenas para consulta.
-          </Banner>
-        )}
-        {completed && !canceled && (
+        {completed && (
           <Banner tone="neon">Tudo quitado. Não há mais parcelas em aberto.</Banner>
         )}
-        {!canceled && !completed && summary.overdueCount > 0 && (
+        {!completed && summary.overdueCount > 0 && (
           <Banner tone="danger">
             {summary.overdueCount === 1
               ? '1 parcela está atrasada.'
@@ -134,7 +143,7 @@ export function SharedContractView({ token }: { token: string }) {
           />
         </div>
 
-        {!canceled && !completed && summary.nextDueDate && (
+        {!completed && summary.nextDueDate && (
           <div className="bg-surface border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Próximo pagamento</p>
             <p className="text-lg font-bold text-foreground">
@@ -150,9 +159,7 @@ export function SharedContractView({ token }: { token: string }) {
             <Row label="Valor a pagar" value={formatCurrency(contract.totalAmount)} />
             <Row
               label="Parcelas"
-              value={`${contract.installmentCount}x de ${formatCurrency(
-                contract.totalAmount / contract.installmentCount,
-              )}`}
+              value={`${contract.installmentCount}x de ${installmentLabel}`}
             />
             <Row
               label="Frequência"

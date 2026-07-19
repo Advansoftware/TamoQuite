@@ -21,7 +21,9 @@ export class DashboardController {
     const allInstallments = await this.prisma.installment.findMany({
       include: { loan: { include: { borrower: true } } },
       orderBy: { dueDate: 'asc' },
-      where: { loan: { userId } },
+      // Deleted contracts contribute nothing: not to the month's total, not to
+      // what's overdue, not to the outstanding balance.
+      where: { loan: { userId, deletedAt: null } },
     });
 
     // Update overdue
@@ -88,14 +90,16 @@ export class DashboardController {
         loanId: i.loanId,
       }));
 
-    const activeLoans = await this.prisma.loan.count({ where: { userId, status: 'ACTIVE' } });
+    const activeLoans = await this.prisma.loan.count({
+      where: { userId, status: 'ACTIVE', deletedAt: null },
+    });
     const totalOutstanding = allInstallments
       .filter((i) => i.status !== 'PAID')
       .reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
 
     const recentLoansRaw = await this.prisma.loan.findMany({
       take: 5,
-      where: { userId },
+      where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       include: { borrower: true, installments: true },
     });

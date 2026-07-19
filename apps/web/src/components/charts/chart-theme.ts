@@ -18,19 +18,17 @@ export const CHART = {
   single: '#00FFA3',
 } as const;
 
-export type StatusKey = 'ACTIVE' | 'COMPLETED' | 'CANCELED';
+export type StatusKey = 'ACTIVE' | 'COMPLETED';
 
 /** Validated categorical slots, in fixed order. Colour follows the entity, never its rank. */
 export const STATUS_COLOR: Record<StatusKey, string> = {
   ACTIVE: '#0FA36B',
   COMPLETED: '#3987e5',
-  CANCELED: '#EF4444',
 };
 
 export const STATUS_LABEL: Record<StatusKey, string> = {
   ACTIVE: 'Em andamento',
   COMPLETED: 'Já quitados',
-  CANCELED: 'Cancelados',
 };
 
 /** Compact money for axis ticks and tight labels: 1.2 mil / 15 mil. */

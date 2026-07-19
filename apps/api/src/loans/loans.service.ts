@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { addPeriods, normalizeFrequency, parseDateOnly } from '../common/period.util';
-import { computeLoanTotals } from './loan-math';
+import { computeLoanTotals, splitIntoInstallments } from './loan-math';
 import { CreateLoanDto } from './dto/create-loan.dto';
 
 const LOAN_INCLUDE = {
   borrower: true,
   installments: { orderBy: { installmentNumber: 'asc' as const } },
 };
+
+/** Soft-deleted contracts are invisible everywhere. Every read starts from this. */
+export const NOT_DELETED = { deletedAt: null } as const;
 
 // Keys the per-contract billing override endpoint is allowed to patch.
 const BILLING_KEYS = [
@@ -29,14 +32,17 @@ export class LoansService {
 
   list(userId: string) {
     return this.prisma.loan.findMany({
-      where: { userId },
+      where: { userId, ...NOT_DELETED },
       orderBy: { createdAt: 'desc' },
       include: LOAN_INCLUDE,
     });
   }
 
   async get(userId: string, id: string) {
-    const loan = await this.prisma.loan.findFirst({ where: { id, userId }, include: LOAN_INCLUDE });
+    const loan = await this.prisma.loan.findFirst({
+      where: { id, userId, ...NOT_DELETED },
+      include: LOAN_INCLUDE,
+    });
     if (!loan) throw new NotFoundException('Loan not found');
     return loan;
   }
@@ -52,20 +58,33 @@ export class LoansService {
     });
     if (!borrower) throw new NotFoundException('Devedor não encontrado');
 
-    // Simple interest on the original principal (see loan-math.ts).
-    const { totalAmount, installmentValue } = computeLoanTotals(
-      dto.originalAmount,
-      interestRate,
-      dto.installmentCount,
-    );
+    // Simple interest on the original principal (see loan-math.ts). When the
+    // client sends the total the user actually typed, that number is the truth —
+    // re-deriving it from the 2-decimal rate is what turned R$250 into 249,98.
+    const totalAmount =
+      dto.totalAmount !== undefined
+        ? Math.round(dto.totalAmount * 100) / 100
+        : computeLoanTotals(dto.originalAmount, interestRate, dto.installmentCount).totalAmount;
+
+    // Cents are distributed instead of repeating a rounded parcela, so the
+    // installments always add up to exactly `totalAmount`.
+    const amounts = splitIntoInstallments(totalAmount, dto.installmentCount);
 
     // The date the user enters IS the first installment's due date; subsequent
-    // installments fall one period after each other.
+    // installments fall one period after each other — unless the user set the
+    // dates by hand (someone paying earlier than the scheduled due date).
     const start = parseDateOnly(dto.startDate);
-    const installmentsData = Array.from({ length: dto.installmentCount }, (_v, idx) => ({
+    if (dto.dueDates && dto.dueDates.length !== dto.installmentCount) {
+      throw new BadRequestException('As datas de vencimento não batem com o número de parcelas');
+    }
+    const dueDates = dto.dueDates
+      ? dto.dueDates.map((d) => parseDateOnly(d))
+      : Array.from({ length: dto.installmentCount }, (_v, idx) => addPeriods(start, frequency, idx));
+
+    const installmentsData = amounts.map((amount, idx) => ({
       installmentNumber: idx + 1,
-      dueDate: addPeriods(start, frequency, idx),
-      amount: installmentValue,
+      dueDate: dueDates[idx],
+      amount,
       status: 'PENDING',
     }));
 
@@ -77,7 +96,7 @@ export class LoansService {
         interestRate,
         totalAmount,
         installmentCount: dto.installmentCount,
-        startDate: start,
+        startDate: dueDates[0] ?? start,
         paymentFrequency: frequency,
         status: 'ACTIVE',
         installments: { create: installmentsData },
@@ -87,36 +106,47 @@ export class LoansService {
   }
 
   /**
-   * Contracts are never deleted — cancelling keeps the installments, payments
-   * and charge history intact, and stops the automatic billing (the cron only
-   * looks at ACTIVE loans).
+   * Deletes a contract from the user's point of view: it disappears along with
+   * its parcelas, its cobranças and its public link, and nothing it holds is
+   * ever counted in a total again. The rows stay in the database purely so a
+   * past contract can still be audited — no screen reads them back.
    */
-  async cancel(userId: string, id: string) {
-    const loan = await this.prisma.loan.findFirst({ where: { id, userId } });
+  async remove(userId: string, id: string) {
+    const loan = await this.prisma.loan.findFirst({ where: { id, userId, ...NOT_DELETED } });
     if (!loan) throw new NotFoundException('Not found');
-    if (loan.status === 'CANCELED') return loan;
-    return this.prisma.loan.update({
-      where: { id },
-      data: { status: 'CANCELED', canceledAt: new Date() },
-    });
-  }
 
-  /** Brings a cancelled contract back; COMPLETED is recomputed on the next payment change. */
-  async reactivate(userId: string, id: string) {
-    const loan = await this.prisma.loan.findFirst({ where: { id, userId } });
-    if (!loan) throw new NotFoundException('Not found');
-    const allPaid =
-      (await this.prisma.installment.count({
-        where: { loanId: id, status: { not: 'PAID' } },
-      })) === 0;
-    return this.prisma.loan.update({
-      where: { id },
-      data: { status: allPaid ? 'COMPLETED' : 'ACTIVE', canceledAt: null },
+    const now = new Date();
+
+    // OutboundMessage.chargeLogId is a plain column, not a relation, so the
+    // queued messages for this contract have to be looked up by id.
+    const chargeLogs = await this.prisma.chargeLog.findMany({
+      where: { installment: { loanId: id } },
+      select: { id: true },
     });
+
+    await this.prisma.$transaction([
+      this.prisma.loan.update({
+        where: { id },
+        data: { deletedAt: now, status: 'CANCELED', canceledAt: loan.canceledAt ?? now },
+      }),
+      // A live share link would keep serving a contract the user deleted.
+      this.prisma.loanShare.updateMany({
+        where: { loanId: id, revokedAt: null },
+        data: { revokedAt: now },
+      }),
+      // Anything still queued must not reach the debtor — the worker only ever
+      // picks up PENDING rows, so parking them here takes them out of play.
+      this.prisma.outboundMessage.updateMany({
+        where: { chargeLogId: { in: chargeLogs.map((c) => c.id) }, status: 'PENDING' },
+        data: { status: 'CANCELED', error: 'contrato excluído' },
+      }),
+    ]);
+
+    return { success: true as const };
   }
 
   async updateBilling(userId: string, id: string, patch: BillingOverridePatch) {
-    const loan = await this.prisma.loan.findFirst({ where: { id, userId } });
+    const loan = await this.prisma.loan.findFirst({ where: { id, userId, ...NOT_DELETED } });
     if (!loan) throw new NotFoundException('Loan not found');
 
     const data: Record<string, unknown> = {};

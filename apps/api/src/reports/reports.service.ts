@@ -19,7 +19,8 @@ export class ReportsService {
     const span = Math.min(Math.max(months, 1), 24);
 
     const loans = await this.prisma.loan.findMany({
-      where: { userId },
+      // Deleted contracts are out of every figure on this screen.
+      where: { userId, deletedAt: null },
       select: {
         id: true,
         status: true,
@@ -38,7 +39,7 @@ export class ReportsService {
       },
     });
 
-    const byStatus = { ACTIVE: 0, COMPLETED: 0, CANCELED: 0 };
+    const byStatus = { ACTIVE: 0, COMPLETED: 0 };
     let totalLent = 0;
     let totalReceived = 0;
     let outstanding = 0;
@@ -67,30 +68,24 @@ export class ReportsService {
       if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + amount);
     };
 
+    // Every loan that reaches this point is a live one — deleted contracts were
+    // filtered out in the query, so there is no "does this count?" case left.
     for (const loan of loans) {
       if (loan.status === 'COMPLETED') byStatus.COMPLETED++;
-      else if (loan.status === 'CANCELED') byStatus.CANCELED++;
       else byStatus.ACTIVE++;
 
-      // Cancelled contracts still happened, but they no longer represent money
-      // in play — keep them out of the lent/outstanding figures.
-      const counts = loan.status !== 'CANCELED';
-      if (counts) {
-        totalLent += loan.originalAmount;
-        expectedTotal += loan.totalAmount;
-      }
+      totalLent += loan.originalAmount;
+      expectedTotal += loan.totalAmount;
 
       let receivedForLoan = 0;
 
       for (const inst of loan.installments) {
         const paid = inst.paidAmount || 0;
-        if (counts) {
-          totalReceived += paid;
-          receivedForLoan += paid;
-          if (inst.status !== 'PAID') outstanding += Math.max(0, inst.amount - paid);
-          // Só conta como "projetado" o que já venceu — o futuro ainda não devia ter entrado.
-          if (new Date(inst.dueDate) <= todayEnd) expectedToDate += inst.amount;
-        }
+        totalReceived += paid;
+        receivedForLoan += paid;
+        if (inst.status !== 'PAID') outstanding += Math.max(0, inst.amount - paid);
+        // Só conta como "projetado" o que já venceu — o futuro ainda não devia ter entrado.
+        if (new Date(inst.dueDate) <= todayEnd) expectedToDate += inst.amount;
 
         // A full payment writes paidAmount/paidAt with no PartialPayment row;
         // partial payments create rows. Count the rows, then attribute only the
@@ -101,8 +96,8 @@ export class ReportsService {
       }
 
       // Dinheiro seu que ainda não voltou, só nos contratos em andamento.
-      // Quitados já devolveram o capital; cancelados saíram de jogo.
-      if (counts && loan.status !== 'COMPLETED') {
+      // Quitados já devolveram o capital.
+      if (loan.status !== 'COMPLETED') {
         activeCapital += Math.max(0, loan.originalAmount - receivedForLoan);
       }
     }

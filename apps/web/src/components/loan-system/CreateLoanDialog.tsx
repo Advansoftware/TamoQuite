@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus } from 'lucide-react';
+import { Percent, ArrowLeftRight, ChevronsUpDown, Check, UserPlus, CalendarDays, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { calcFromRate, calcRateFromTotal, type CalcMode } from '@/features/loans/loan-math';
+import { calcFromRate, calcRateFromTotal, splitIntoInstallments, type CalcMode } from '@/features/loans/loan-math';
+import { buildSchedule } from '@/features/loans/schedule';
 
 interface CreateLoanDialogProps {
   open: boolean;
@@ -42,6 +43,10 @@ export function CreateLoanDialog({
   const [newPerson, setNewPerson] = useState({ name: '', whatsapp: '' });
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
   const [singlePayment, setSinglePayment] = useState(false);
+  // Due dates the user typed over the auto-generated schedule, keyed by
+  // installment index. Empty → that installment keeps its scheduled date.
+  const [dueDateOverrides, setDueDateOverrides] = useState<Record<number, string>>({});
+  const [datesOpen, setDatesOpen] = useState(false);
   const submitting = createLoan.isPending;
   const creatingPerson = createBorrower.isPending;
 
@@ -99,6 +104,8 @@ export function CreateLoanDialog({
       });
       setCalcMode('BY_RATE');
       setSinglePayment(false);
+      setDueDateOverrides({});
+      setDatesOpen(false);
     }, 0);
     return () => clearTimeout(timer);
   }, [open, fixedBorrowerId]);
@@ -140,6 +147,25 @@ export function CreateLoanDialog({
     previewRate = calcRateFromTotal(P, totalInput, n);
   }
 
+  // The parcelas exactly as they'll be stored — cents distributed, summing to
+  // the total shown just above them.
+  const previewParts = splitIntoInstallments(previewTotal, n);
+
+  // The dates as they'll be saved: the periodic schedule, with anything the user
+  // typed by hand taking precedence.
+  const schedule = buildSchedule(form.startDate, form.frequency, n);
+  const dueDates = schedule.map((d, idx) => dueDateOverrides[idx] || d);
+  const hasOverrides = Object.keys(dueDateOverrides).length > 0;
+
+  const setDueDate = (idx: number, value: string) => {
+    setDueDateOverrides((prev) => {
+      const next = { ...prev };
+      if (value) next[idx] = value;
+      else delete next[idx];
+      return next;
+    });
+  };
+
   const handleCreate = async () => {
     const activeBorrowerId = fixedBorrowerId || form.borrowerId;
     let finalRate = 0;
@@ -171,9 +197,15 @@ export function CreateLoanDialog({
         borrowerId: activeBorrowerId,
         originalAmount: P,
         interestRate: finalRate,
+        // Send the total shown in the preview, not just the rate. Rounding the
+        // rate to 2 decimals is lossy, so letting the server re-derive it turned
+        // a R$250 contract into 249,98.
+        totalAmount: Math.round(previewTotal * 100) / 100,
         installmentCount: n,
         frequency: form.frequency,
-        startDate: form.startDate,
+        startDate: dueDates[0] || form.startDate,
+        // Only sent when the user actually moved a date.
+        ...(hasOverrides ? { dueDates } : {}),
       });
       toast.success('Empréstimo criado com sucesso!');
       onOpenChange(false);
@@ -490,6 +522,46 @@ export function CreateLoanDialog({
             </div>
           </div>
 
+          {/* Per-installment due dates. Collapsed by default — the periodic
+              schedule is right most of the time, and this is for the case where
+              someone arranges to pay on a different day. */}
+          {!singlePayment && n > 0 && form.startDate && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDatesOpen((v) => !v)}
+                className="w-full flex items-center justify-between p-3 bg-surface-elevated hover:bg-secondary transition-colors cursor-pointer"
+              >
+                <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5 text-neon" />
+                  Vencimentos das parcelas
+                  {hasOverrides && <span className="text-neon">· ajustado</span>}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${datesOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {datesOpen && (
+                <div className="p-3 space-y-2 max-h-56 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground">
+                    Preenchidos automaticamente. Altere qualquer um se combinou outra data.
+                  </p>
+                  {dueDates.map((date, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16 shrink-0">
+                        {idx + 1}ª parcela
+                      </span>
+                      <Input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDueDate(idx, e.target.value)}
+                        className="bg-surface-elevated border-border text-foreground rounded-lg h-9 text-xs flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Preview */}
           {(previewTotal > 0 || previewPmt > 0) && (
             <div className="bg-neon-dim rounded-xl p-4 border border-neon/20 space-y-2">
@@ -508,7 +580,13 @@ export function CreateLoanDialog({
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-muted-foreground">Valor por parcela</span>
-                <span className="text-xs text-neon font-bold">{formatCurrency(previewPmt)}</span>
+                <span className="text-xs text-neon font-bold">
+                  {/* When the total doesn't divide evenly the first parcelas
+                      carry the extra centavo, so show the real range. */}
+                  {previewParts.length > 1 && previewParts[0] !== previewParts[previewParts.length - 1]
+                    ? `${formatCurrency(previewParts[0])} / ${formatCurrency(previewParts[previewParts.length - 1])}`
+                    : formatCurrency(previewParts[0] ?? previewPmt)}
+                </span>
               </div>
               <div className="flex justify-between border-t border-neon/10 pt-2 mt-2">
                 <span className="text-xs text-muted-foreground">Custo dos juros</span>

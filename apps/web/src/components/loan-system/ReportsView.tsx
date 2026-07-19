@@ -79,7 +79,7 @@ export function ReportsView() {
 
       <ChartCard
         title="Situação dos seus contratos"
-        hint="Quantos estão em andamento, quitados ou cancelados."
+        hint="Quantos estão em andamento e quantos já foram quitados."
         table={(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map((k) => ({
           label: STATUS_LABEL[k],
           value: String(byStatus[k]),

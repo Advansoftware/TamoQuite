@@ -50,7 +50,7 @@ export class AdminController {
         trialUsedAt: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
-        _count: { select: { borrowers: true, loans: true } },
+        _count: { select: { borrowers: true, loans: { where: { deletedAt: null } } } },
       },
       orderBy: { createdAt: 'desc' },
     });

@@ -78,8 +78,14 @@ export class BillingCron {
         doNotCharge: false,
         status: { not: 'PAID' },
         type: { not: 'INTEREST' },
-        // Cancelled contracts and deactivated clients are never charged.
-        loan: { userId, status: 'ACTIVE', doNotCharge: false, borrower: { isActive: true } },
+        // Deleted contracts and deactivated clients are never charged.
+        loan: {
+          userId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          doNotCharge: false,
+          borrower: { isActive: true },
+        },
       },
       include: { loan: { include: { borrower: true } } },
     });
@@ -174,7 +180,7 @@ export class BillingCron {
    */
   async chargeInstallmentNow(userId: string, installmentId: string) {
     const inst = await this.prisma.installment.findFirst({
-      where: { id: installmentId },
+      where: { id: installmentId, loan: { deletedAt: null } },
       include: { loan: { include: { borrower: true } } },
     });
     if (!inst || inst.loan.userId !== userId) {
@@ -182,9 +188,6 @@ export class BillingCron {
     }
     if (inst.status === 'PAID') {
       throw new BadRequestException('Esta parcela já está quitada');
-    }
-    if (inst.loan.status === 'CANCELED') {
-      throw new BadRequestException('Este contrato está cancelado');
     }
     if (!inst.loan.borrower.isActive) {
       throw new BadRequestException('Este cliente está desativado');

@@ -26,9 +26,12 @@ export class ChargeHistoryService {
 
     const where = {
       // Ownership filter — never remove.
+      // Ownership + soft delete: charges of a deleted contract are gone from
+      // the history too.
       installment: {
         loan: {
           userId,
+          deletedAt: null,
           ...(q.borrowerId ? { borrowerId: q.borrowerId } : {}),
         },
       },
@@ -86,7 +89,7 @@ export class ChargeHistoryService {
 
   /** Counters for the filter chips — same ownership scoping as list(). */
   async summary(userId: string) {
-    const base = { installment: { loan: { userId } } };
+    const base = { installment: { loan: { userId, deletedAt: null } } };
     const [total, sent, failed, queued] = await Promise.all([
       this.prisma.chargeLog.count({ where: base }),
       this.prisma.chargeLog.count({ where: { ...base, status: 'SENT' } }),

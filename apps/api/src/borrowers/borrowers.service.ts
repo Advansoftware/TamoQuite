@@ -21,8 +21,13 @@ export class BorrowersService {
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        _count: { select: { loans: true } },
-        loans: { select: { installments: { select: { status: true } } } },
+        // Contract counters and parcela states ignore deleted contracts, so a
+        // client doesn't keep showing loans the user already removed.
+        _count: { select: { loans: { where: { deletedAt: null } } } },
+        loans: {
+          where: { deletedAt: null },
+          select: { installments: { select: { status: true } } },
+        },
       },
     });
   }
@@ -43,6 +48,7 @@ export class BorrowersService {
       where: { id, userId },
       include: {
         loans: {
+          where: { deletedAt: null },
           include: { installments: { orderBy: { installmentNumber: 'asc' } } },
           orderBy: { createdAt: 'desc' },
         },
