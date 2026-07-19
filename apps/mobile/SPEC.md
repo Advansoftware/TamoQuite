@@ -57,8 +57,29 @@ Prefixo global `/api` (definido em `apps/api/src/main.ts`).
 | `GET /api/auth/me` 🔒 | Revalida sessão e status de assinatura |
 | `POST /api/auth/forgot-password` | Envia link de redefinição |
 | `GET /api/dashboard` 🔒💳 | Métricas do painel |
+| `GET /api/borrowers?status=` 🔒💳 | Lista de clientes (ativos/desativados) |
+| `GET /api/borrowers/:id` 🔒💳 | Cliente + contratos (alcança desativados) |
+| `POST /api/borrowers` 🔒💳 | Cadastra cliente |
+| `PUT /api/borrowers/:id` 🔒💳 | Edita cliente (parcial) |
+| `DELETE /api/borrowers/:id` 🔒💳 | **Desativa** (soft delete reversível) |
+| `POST /api/borrowers/:id/reactivate` 🔒💳 | Reativa cliente |
+| `GET /api/loans` 🔒💳 | Contratos vivos de clientes ativos |
+| `GET /api/loans/:id` 🔒💳 | Contrato + parcelas |
+| `POST /api/loans` 🔒💳 | Cria contrato (envia `totalAmount` explícito) |
+| `DELETE /api/loans/:id` 🔒💳 | Exclui contrato (soft delete sem volta) |
+| `PUT /api/installments/:id` 🔒💳 | Quita a parcela |
+| `POST /api/installments/:id/partial-payments` 🔒💳 | Pagamento parcial |
+| `POST /api/installments/:id/undo-payment` 🔒💳 | Zera os pagamentos da parcela |
 
 🔒 exige JWT · 💳 exige assinatura ativa (`SubscriptionGuard`)
+
+**`DELETE` é sempre soft delete.** Em `borrowers` ele desativa e é revertido por
+`/reactivate`; em `loans` some para o usuário e **não** tem rota de volta (as
+linhas ficam só para auditoria). O app deixa isso claro no texto de cada
+confirmação — a rota é a mesma do site, o que muda é o quanto é reversível.
+
+**Listas devolvem array na raiz.** O `ApiClient` tem `getList` para esses
+endpoints; `get/put/patch/delete` continuam devolvendo objeto.
 
 ### Autenticação
 

@@ -73,7 +73,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
   Widget build(BuildContext context) {
     final filter = ref.watch(loanFilterProvider);
     final loans = ref.watch(loansListProvider);
-    final all = loans.valueOrNull ?? const <Loan>[];
+    final all = loans.value ?? const <Loan>[];
 
     return Scaffold(
       body: RefreshIndicator(
@@ -85,7 +85,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
             return ListView(
               padding: EdgeInsets.fromLTRB(padding, 16, padding, 96),
               children: [
-                _Header(count: loans.valueOrNull?.length),
+                _Header(count: loans.value?.length),
                 const SizedBox(height: 16),
                 TqSearchField(
                   controller: _search,

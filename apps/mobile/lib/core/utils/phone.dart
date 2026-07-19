@@ -77,18 +77,23 @@ String _formatUs(String d) {
   return '(${d.substring(0, 3)}) ${d.substring(3, 6)}-${d.substring(6)}';
 }
 
+/// Brasil, o país padrão. Nomeado à parte para servir de `const` ao
+/// [kDefaultPhoneCountry] — indexar a lista (`kPhoneCountries[0]`) não é
+/// expressão constante em Dart.
+const _brazil = PhoneCountry(
+  iso: 'BR',
+  name: 'Brasil',
+  dial: '55',
+  flag: '🇧🇷',
+  groups: [],
+  formatter: _formatBr,
+  maxNational: 11,
+  placeholder: '(11) 91234-5678',
+);
+
 /// Mesma lista e mesma ordem do site — Brasil primeiro (padrão).
 const kPhoneCountries = <PhoneCountry>[
-  PhoneCountry(
-    iso: 'BR',
-    name: 'Brasil',
-    dial: '55',
-    flag: '🇧🇷',
-    groups: [],
-    formatter: _formatBr,
-    maxNational: 11,
-    placeholder: '(11) 91234-5678',
-  ),
+  _brazil,
   PhoneCountry(
     iso: 'PT',
     name: 'Portugal',
@@ -191,7 +196,7 @@ const kPhoneCountries = <PhoneCountry>[
   ),
 ];
 
-const kDefaultPhoneCountry = kPhoneCountries[0];
+const kDefaultPhoneCountry = _brazil;
 
 /// Um telefone já separado em país + número nacional.
 class PhoneNumber {

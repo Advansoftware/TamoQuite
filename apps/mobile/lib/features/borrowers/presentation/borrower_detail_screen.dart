@@ -32,7 +32,7 @@ class BorrowerDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(detail.valueOrNull?.borrower.name ?? 'Cliente'),
+        title: Text(detail.value?.borrower.name ?? 'Cliente'),
         actions: [
           if (detail.hasValue)
             IconButton(

@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/borrowers/presentation/borrower_detail_screen.dart';
+import '../../features/borrowers/presentation/borrowers_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
+import '../../features/loans/presentation/loan_detail_screen.dart';
+import '../../features/loans/presentation/loans_screen.dart';
 import '../../features/lock/presentation/lock_screen.dart';
 import '../../features/more/presentation/more_screen.dart';
 import '../../features/shell/presentation/app_shell.dart';
-import '../../features/shell/presentation/coming_soon_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/subscription/presentation/subscription_required_screen.dart';
 import '../security/app_lock_controller.dart';
@@ -61,10 +64,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.borrowers,
-                builder: (_, _) => const ComingSoonScreen(
-                  title: 'Clientes',
-                  icon: Icons.people_outline,
-                ),
+                builder: (_, _) => const BorrowersScreen(),
               ),
             ],
           ),
@@ -72,10 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.loans,
-                builder: (_, _) => const ComingSoonScreen(
-                  title: 'Empréstimos',
-                  icon: Icons.description_outlined,
-                ),
+                builder: (_, _) => const LoansScreen(),
               ),
             ],
           ),
@@ -88,6 +85,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+
+      // Telas de detalhe ficam fora do shell, empilhadas sobre ele no navegador
+      // raiz. Assim um contrato aberto pela tela do cliente (aba Clientes) não
+      // depende do histórico da aba Empréstimos — cada uma traz sua própria
+      // AppBar com voltar, e não há navegação cruzada entre pilhas de abas.
+      GoRoute(
+        path: '${AppRoutes.borrowers}/:id',
+        builder: (_, state) =>
+            BorrowerDetailScreen(borrowerId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '${AppRoutes.loans}/:id',
+        builder: (_, state) =>
+            LoanDetailScreen(loanId: state.pathParameters['id']!),
       ),
     ],
     redirect: (context, state) {

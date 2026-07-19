@@ -119,7 +119,7 @@ class _BorrowersScreenState extends ConsumerState<BorrowersScreen> {
     // enquanto a aba "Ativos" está aberta.
     final inactiveCount = ref
         .watch(borrowersListProvider(BorrowerFilter.inactive))
-        .valueOrNull
+        .value
         ?.length;
 
     return Scaffold(
@@ -133,7 +133,7 @@ class _BorrowersScreenState extends ConsumerState<BorrowersScreen> {
             return ListView(
               padding: EdgeInsets.fromLTRB(padding, 16, padding, 96),
               children: [
-                _Header(count: borrowers.valueOrNull?.length),
+                _Header(count: borrowers.value?.length),
                 const SizedBox(height: 16),
                 TqSearchField(
                   controller: _search,

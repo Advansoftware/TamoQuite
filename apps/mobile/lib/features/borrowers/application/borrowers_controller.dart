@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// StateProvider é legado no Riverpod 3, mas continua a forma mais enxuta de
+// guardar um filtro de UI sem escrever um Notifier só para isso.
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../dashboard/application/dashboard_controller.dart';
 import '../../loans/application/loans_controller.dart';
