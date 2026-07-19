@@ -85,6 +85,6 @@ export const useAppStore = create<AppState>((set) => ({
     set({ user: null, token: null, isAuthenticated: false });
   },
 
-  loansFilter: 'ALL',
+  loansFilter: 'ACTIVE',
   setLoansFilter: (filter) => set({ loansFilter: filter }),
 }));

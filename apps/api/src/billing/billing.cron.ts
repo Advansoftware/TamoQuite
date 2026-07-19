@@ -78,7 +78,8 @@ export class BillingCron {
         doNotCharge: false,
         status: { not: 'PAID' },
         type: { not: 'INTEREST' },
-        loan: { userId, status: 'ACTIVE', doNotCharge: false },
+        // Cancelled contracts and deactivated clients are never charged.
+        loan: { userId, status: 'ACTIVE', doNotCharge: false, borrower: { isActive: true } },
       },
       include: { loan: { include: { borrower: true } } },
     });
@@ -181,6 +182,12 @@ export class BillingCron {
     }
     if (inst.status === 'PAID') {
       throw new BadRequestException('Esta parcela já está quitada');
+    }
+    if (inst.loan.status === 'CANCELED') {
+      throw new BadRequestException('Este contrato está cancelado');
+    }
+    if (!inst.loan.borrower.isActive) {
+      throw new BadRequestException('Este cliente está desativado');
     }
 
     const settings = await this.settings.getOrCreate(userId);

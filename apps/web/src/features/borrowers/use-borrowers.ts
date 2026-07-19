@@ -3,10 +3,11 @@ import { apiJson, apiPost, apiPut, apiDelete, resolveJson } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import type { Borrower, BorrowerDetail, BorrowerInput } from './types';
 
-export function useBorrowers() {
+/** `status`: 'active' (default), 'inactive' or 'all' — deactivated clients are kept, never deleted. */
+export function useBorrowers(status: 'active' | 'inactive' | 'all' = 'active') {
   return useQuery({
-    queryKey: qk.borrowers,
-    queryFn: () => apiJson<Borrower[]>('/api/borrowers'),
+    queryKey: qk.borrowersByStatus(status),
+    queryFn: () => apiJson<Borrower[]>(`/api/borrowers?status=${status}`),
   });
 }
 
@@ -44,10 +45,23 @@ export function useUpdateBorrower() {
   });
 }
 
-export function useDeleteBorrower() {
+/**
+ * Deactivates a client (soft delete). Their contracts and history stay intact
+ * and the client can be reactivated from the "Desativados" tab.
+ */
+export function useDeactivateBorrower() {
   const invalidate = useInvalidateBorrowers();
   return useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/borrowers/${id}`).then((r) => resolveJson<{ success: boolean }>(r)),
+    mutationFn: (id: string) => apiDelete(`/api/borrowers/${id}`).then((r) => resolveJson<Borrower>(r)),
+    onSuccess: invalidate,
+  });
+}
+
+export function useReactivateBorrower() {
+  const invalidate = useInvalidateBorrowers();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiPost(`/api/borrowers/${id}/reactivate`, {}).then((r) => resolveJson<Borrower>(r)),
     onSuccess: invalidate,
   });
 }

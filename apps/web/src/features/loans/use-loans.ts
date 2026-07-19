@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiJson, apiPost, apiDelete, resolveJson } from '@/lib/api';
+import { apiJson, apiPost, resolveJson } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import type { LoanInput, LoanListItem } from './types';
 
@@ -28,10 +28,24 @@ export function useCreateLoan() {
   });
 }
 
-export function useDeleteLoan() {
+/**
+ * Cancels a contract. Nothing is deleted — the installments, payments and
+ * charge history stay, and the contract can be reactivated later.
+ */
+export function useCancelLoan() {
   const invalidate = useInvalidateLoans();
   return useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/loans/${id}`).then((r) => resolveJson<{ success: boolean }>(r)),
+    mutationFn: (id: string) =>
+      apiPost(`/api/loans/${id}/cancel`, {}).then((r) => resolveJson<LoanListItem>(r)),
+    onSuccess: invalidate,
+  });
+}
+
+export function useReactivateLoan() {
+  const invalidate = useInvalidateLoans();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiPost(`/api/loans/${id}/reactivate`, {}).then((r) => resolveJson<LoanListItem>(r)),
     onSuccess: invalidate,
   });
 }

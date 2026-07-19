@@ -4,6 +4,9 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Param,
+  Post,
+  Query,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
@@ -23,11 +26,17 @@ export class AdminController {
     }
   }
 
+  // `status`: active (default) | inactive | all. Deactivated users are kept
+  // forever and stay reachable under their own tab.
   @Get()
-  async list(@CurrentUser() user: AuthUser) {
+  async list(
+    @CurrentUser() user: AuthUser,
+    @Query('status') status?: 'active' | 'inactive' | 'all',
+  ) {
     this.assertSuperAdmin(user);
+    const s = status ?? 'active';
     return this.prisma.systemUser.findMany({
-      where: { isActive: true },
+      where: s === 'all' ? {} : { isActive: s === 'active' },
       select: {
         id: true,
         email: true,
@@ -35,6 +44,8 @@ export class AdminController {
         role: true,
         mustChangePassword: true,
         createdAt: true,
+        isActive: true,
+        deactivatedAt: true,
         subscriptionStatus: true,
         trialUsedAt: true,
         stripeCustomerId: true,
@@ -55,7 +66,17 @@ export class AdminController {
 
     await this.prisma.systemUser.update({
       where: { id: targetUserId },
-      data: { isActive: false },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
+    return { success: true };
+  }
+
+  @Post(':id/reactivate')
+  async reactivate(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    this.assertSuperAdmin(user);
+    await this.prisma.systemUser.update({
+      where: { id },
+      data: { isActive: true, deactivatedAt: null },
     });
     return { success: true };
   }

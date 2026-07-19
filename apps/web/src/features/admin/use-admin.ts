@@ -3,10 +3,10 @@ import { apiJson, apiPost, apiDelete, resolveJson } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import type { Coupon, CreateCouponInput, CreateUserInput, ManagedUser } from './types';
 
-export function useAdminUsers() {
+export function useAdminUsers(status: 'active' | 'inactive' | 'all' = 'active') {
   return useQuery({
-    queryKey: qk.adminUsers,
-    queryFn: () => apiJson<ManagedUser[]>('/api/admin/users'),
+    queryKey: qk.adminUsersByStatus(status),
+    queryFn: () => apiJson<ManagedUser[]>(`/api/admin/users?status=${status}`),
   });
 }
 
@@ -24,6 +24,15 @@ export function useDeactivateUser() {
   return useMutation({
     mutationFn: (targetUserId: string) =>
       apiDelete('/api/admin/users', { targetUserId }).then((r) => resolveJson<{ success: boolean }>(r)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.adminUsers }),
+  });
+}
+
+export function useReactivateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiPost(`/api/admin/users/${userId}/reactivate`, {}).then((r) => resolveJson<{ success: boolean }>(r)),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.adminUsers }),
   });
 }

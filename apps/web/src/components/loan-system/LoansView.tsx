@@ -4,59 +4,74 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { formatCurrency, formatPhone } from '@/lib/helpers';
-import { Plus, Search, FileText, Trash2, ChevronRight, Percent, Calendar, ArrowRight } from 'lucide-react';
+import { Plus, Search, FileText, Ban, RotateCcw, ChevronRight, Percent, Calendar, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useLoans, useDeleteLoan, useInvalidateLoans } from '@/features/loans/use-loans';
+import { useLoans, useCancelLoan, useReactivateLoan, useInvalidateLoans } from '@/features/loans/use-loans';
 import type { LoanListItem as Loan } from '@/features/loans/types';
 
 import { CreateLoanDialog } from './CreateLoanDialog';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FilterTabs } from '@/components/ui/filter-tabs';
 
 export function LoansView() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [selected, setSelected] = useState<Loan | null>(null);
   const router = useRouter();
   const { loansFilter, setLoansFilter } = useAppStore();
 
   const { data: loans = [], isLoading: loading } = useLoans();
-  const deleteMut = useDeleteLoan();
+  const cancelMut = useCancelLoan();
+  const reactivateMut = useReactivateLoan();
   const invalidateLoans = useInvalidateLoans();
-  const submitting = deleteMut.isPending;
+  const submitting = cancelMut.isPending || reactivateMut.isPending;
 
   const filtered = loans.filter((l) => {
     const matchesName = l.borrower.name.toLowerCase().includes(search.toLowerCase());
     if (!matchesName) return false;
 
-    if (loansFilter === 'ACTIVE') {
-      return l.status === 'ACTIVE';
-    }
+    if (loansFilter === 'ACTIVE') return l.status === 'ACTIVE';
     if (loansFilter === 'OVERDUE') {
       return l.status === 'ACTIVE' && l.installments.some((i) => i.status === 'OVERDUE');
     }
-    if (loansFilter === 'FINALIZED') {
-      return l.status !== 'ACTIVE';
-    }
+    if (loansFilter === 'COMPLETED') return l.status === 'COMPLETED';
+    if (loansFilter === 'CANCELED') return l.status === 'CANCELED';
     return true;
   });
+
+  const counts = {
+    ACTIVE: loans.filter((l) => l.status === 'ACTIVE').length,
+    OVERDUE: loans.filter((l) => l.status === 'ACTIVE' && l.installments.some((i) => i.status === 'OVERDUE')).length,
+    COMPLETED: loans.filter((l) => l.status === 'COMPLETED').length,
+    CANCELED: loans.filter((l) => l.status === 'CANCELED').length,
+  };
 
   const openCreate = () => {
     setCreateOpen(true);
   };
 
-  const openDelete = (loan: Loan) => { setSelected(loan); setDeleteOpen(true); };
+  const openCancel = (loan: Loan) => { setSelected(loan); setCancelOpen(true); };
 
-  const handleDelete = async () => {
+  const handleCancel = async () => {
     if (!selected) return;
     try {
-      await deleteMut.mutateAsync(selected.id);
-      setDeleteOpen(false);
+      await cancelMut.mutateAsync(selected.id);
+      toast.success('Contrato cancelado. Ele continua no histórico.');
+      setCancelOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
+    }
+  };
+
+  const handleReactivate = async (loan: Loan) => {
+    try {
+      await reactivateMut.mutateAsync(loan.id);
+      toast.success('Contrato reativado.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
@@ -88,18 +103,19 @@ export function LoansView() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar por nome..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-surface border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11" />
         </div>
-        <Select value={loansFilter} onValueChange={setLoansFilter}>
-          <SelectTrigger className="w-full sm:w-56 bg-surface border-border text-foreground rounded-xl h-11">
-            <SelectValue placeholder="Filtrar por status" />
-          </SelectTrigger>
-          <SelectContent className="bg-surface border-border text-foreground rounded-xl">
-            <SelectItem value="ALL">Todos os contratos</SelectItem>
-            <SelectItem value="ACTIVE">Contratos Ativos</SelectItem>
-            <SelectItem value="OVERDUE">Contratos Atrasados</SelectItem>
-            <SelectItem value="FINALIZED">Contratos Finalizados</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
+
+      <FilterTabs
+        value={loansFilter}
+        onChange={setLoansFilter}
+        options={[
+          { value: 'ACTIVE', label: 'Ativos', count: counts.ACTIVE },
+          { value: 'OVERDUE', label: 'Atrasados', count: counts.OVERDUE },
+          { value: 'COMPLETED', label: 'Concluídos', count: counts.COMPLETED },
+          { value: 'CANCELED', label: 'Cancelados', count: counts.CANCELED },
+          { value: 'ALL', label: 'Todos', count: loans.length },
+        ]}
+      />
 
       {loading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
@@ -122,7 +138,11 @@ export function LoansView() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => openDelete(loan)} className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                    {loan.status === 'CANCELED' ? (
+                      <button title="Reativar contrato" onClick={(e) => { e.stopPropagation(); handleReactivate(loan); }} className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-neon-dim flex items-center justify-center transition-colors"><RotateCcw className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                    ) : (
+                      <button title="Cancelar contrato" onClick={(e) => { e.stopPropagation(); openCancel(loan); }} className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"><Ban className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                    )}
                     <button onClick={() => router.push(`/loans/${loan.id}`)} className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>
                   </div>
                 </div>
@@ -166,18 +186,18 @@ export function LoansView() {
       />
 
       {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-danger">Excluir Empréstimo</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-danger">Cancelar contrato</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Excluir empréstimo de <strong className="text-foreground">{selected?.borrower.name}</strong>?
+              Cancelar o contrato de <strong className="text-foreground">{selected?.borrower.name}</strong>? As cobranças automáticas param, mas nada é apagado — o contrato fica na aba &quot;Cancelados&quot; e pode ser reativado.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)} className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1">Cancelar</Button>
-            <Button onClick={handleDelete} disabled={submitting} className="bg-danger text-white hover:bg-danger/90 font-semibold rounded-xl flex-1">
-              {submitting ? 'Excluindo...' : 'Excluir'}
+            <Button variant="secondary" onClick={() => setCancelOpen(false)} className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1">Voltar</Button>
+            <Button onClick={handleCancel} disabled={submitting} className="bg-danger text-white hover:bg-danger/90 font-semibold rounded-xl flex-1">
+              {submitting ? 'Cancelando...' : 'Cancelar contrato'}
             </Button>
           </DialogFooter>
         </DialogContent>

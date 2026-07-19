@@ -25,9 +25,21 @@ export class LoansController {
     return this.loans.get(userId, id);
   }
 
+  // Kept as DELETE for existing clients, but it only cancels — a contract's
+  // installments and history are never erased.
   @Delete(':id')
-  remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
-    return this.loans.remove(userId, id);
+  cancel(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.loans.cancel(userId, id);
+  }
+
+  @Post(':id/cancel')
+  cancelExplicit(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.loans.cancel(userId, id);
+  }
+
+  @Post(':id/reactivate')
+  reactivate(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.loans.reactivate(userId, id);
   }
 
   // Per-contract billing override + "do not charge"

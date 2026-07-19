@@ -86,10 +86,33 @@ export class LoansService {
     });
   }
 
-  async remove(userId: string, id: string) {
-    const result = await this.prisma.loan.deleteMany({ where: { id, userId } });
-    if (result.count === 0) throw new NotFoundException('Not found');
-    return { success: true };
+  /**
+   * Contracts are never deleted — cancelling keeps the installments, payments
+   * and charge history intact, and stops the automatic billing (the cron only
+   * looks at ACTIVE loans).
+   */
+  async cancel(userId: string, id: string) {
+    const loan = await this.prisma.loan.findFirst({ where: { id, userId } });
+    if (!loan) throw new NotFoundException('Not found');
+    if (loan.status === 'CANCELED') return loan;
+    return this.prisma.loan.update({
+      where: { id },
+      data: { status: 'CANCELED', canceledAt: new Date() },
+    });
+  }
+
+  /** Brings a cancelled contract back; COMPLETED is recomputed on the next payment change. */
+  async reactivate(userId: string, id: string) {
+    const loan = await this.prisma.loan.findFirst({ where: { id, userId } });
+    if (!loan) throw new NotFoundException('Not found');
+    const allPaid =
+      (await this.prisma.installment.count({
+        where: { loanId: id, status: { not: 'PAID' } },
+      })) === 0;
+    return this.prisma.loan.update({
+      where: { id },
+      data: { status: allPaid ? 'COMPLETED' : 'ACTIVE', canceledAt: null },
+    });
   }
 
   async updateBilling(userId: string, id: string, patch: BillingOverridePatch) {

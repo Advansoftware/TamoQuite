@@ -8,9 +8,17 @@ const onlyDigits = (v: string) => v.replace(/\D/g, '');
 export class BorrowersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(userId: string) {
+  /**
+   * `status` filters the soft-delete state: 'active' (default), 'inactive' or
+   * 'all'. Deactivated clients are never removed — they stay listed under their
+   * own tab so history is always recoverable.
+   */
+  list(userId: string, status: 'active' | 'inactive' | 'all' = 'active') {
     return this.prisma.borrower.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(status === 'all' ? {} : { isActive: status === 'active' }),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { loans: true } },
@@ -57,9 +65,25 @@ export class BorrowersService {
     return this.prisma.borrower.findUnique({ where: { id } });
   }
 
-  async remove(userId: string, id: string) {
-    const result = await this.prisma.borrower.deleteMany({ where: { id, userId } });
+  /**
+   * Soft delete. Nothing is ever erased: the client is deactivated, keeping the
+   * contracts and charge history intact and reversible.
+   */
+  async deactivate(userId: string, id: string) {
+    const result = await this.prisma.borrower.updateMany({
+      where: { id, userId },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
     if (result.count === 0) throw new NotFoundException('Not found');
-    return { success: true };
+    return this.prisma.borrower.findUnique({ where: { id } });
+  }
+
+  async reactivate(userId: string, id: string) {
+    const result = await this.prisma.borrower.updateMany({
+      where: { id, userId },
+      data: { isActive: true, deactivatedAt: null },
+    });
+    if (result.count === 0) throw new NotFoundException('Not found');
+    return this.prisma.borrower.findUnique({ where: { id } });
   }
 }

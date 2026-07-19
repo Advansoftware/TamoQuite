@@ -16,6 +16,7 @@ model SystemUser {
   role                 String       @default("CLIENT")
   mustChangePassword   Boolean      @default(true)
   isActive             Boolean      @default(true)
+  deactivatedAt        DateTime?
   stripeCustomerId     String?
   stripeSubscriptionId String?
   subscriptionStatus   String?      @default("INACTIVE")
@@ -53,11 +54,15 @@ model Borrower {
   name      String
   whatsapp  String
   notes     String?    @db.Text
+  // Soft delete: nothing is ever removed from the system, only deactivated.
+  isActive      Boolean   @default(true)
+  deactivatedAt DateTime?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   loans     Loan[]
 
   @@index([userId])
+  @@index([userId, isActive])
 }
 
 model Loan {
@@ -72,7 +77,8 @@ model Loan {
   installmentCount Int
   startDate        DateTime
   paymentFrequency String     @default("MONTHLY") // WEEKLY | BIWEEKLY | MONTHLY
-  status           String     @default("ACTIVE")
+  status           String     @default("ACTIVE") // ACTIVE | COMPLETED | CANCELED
+  canceledAt       DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   installments     Installment[]

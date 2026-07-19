@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatPhone } from '@/lib/helpers';
-import { Plus, Search, Phone, Trash2, User, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Phone, UserX, UserCheck, User, ChevronRight, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
-import { useBorrowers, useCreateBorrower, useUpdateBorrower, useDeleteBorrower } from '@/features/borrowers/use-borrowers';
+import { useBorrowers, useCreateBorrower, useUpdateBorrower, useDeactivateBorrower, useReactivateBorrower } from '@/features/borrowers/use-borrowers';
+import { FilterTabs } from '@/components/ui/filter-tabs';
 import type { Borrower } from '@/features/borrowers/types';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -19,16 +20,19 @@ export function BorrowersView() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [tab, setTab] = useState<'active' | 'inactive'>('active');
   const [selected, setSelected] = useState<Borrower | null>(null);
   const [form, setForm] = useState({ name: '', whatsapp: '', notes: '' });
   const router = useRouter();
 
-  const { data: borrowers = [], isLoading: loading } = useBorrowers();
+  const { data: borrowers = [], isLoading: loading } = useBorrowers(tab);
+  const { data: inactiveList = [] } = useBorrowers('inactive');
   const createMut = useCreateBorrower();
   const updateMut = useUpdateBorrower();
-  const deleteMut = useDeleteBorrower();
-  const submitting = createMut.isPending || updateMut.isPending || deleteMut.isPending;
+  const deactivateMut = useDeactivateBorrower();
+  const reactivateMut = useReactivateBorrower();
+  const submitting = createMut.isPending || updateMut.isPending || deactivateMut.isPending || reactivateMut.isPending;
 
   const filtered = borrowers.filter((b) =>
     b.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -46,9 +50,9 @@ export function BorrowersView() {
     setEditOpen(true);
   };
 
-  const openDelete = (b: Borrower) => {
+  const openDeactivate = (b: Borrower) => {
     setSelected(b);
-    setDeleteOpen(true);
+    setDeactivateOpen(true);
   };
 
   const handleCreate = async () => {
@@ -71,11 +75,21 @@ export function BorrowersView() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!selected) return;
     try {
-      await deleteMut.mutateAsync(selected.id);
-      setDeleteOpen(false);
+      await deactivateMut.mutateAsync(selected.id);
+      toast.success('Cliente desativado. Ele fica guardado na aba "Desativados".');
+      setDeactivateOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
+    }
+  };
+
+  const handleReactivate = async (b: Borrower) => {
+    try {
+      await reactivateMut.mutateAsync(b.id);
+      toast.success('Cliente reativado.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro de conexão com o servidor');
     }
@@ -108,6 +122,15 @@ export function BorrowersView() {
           className="pl-10 bg-surface border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
         />
       </div>
+
+      <FilterTabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'active', label: 'Ativos' },
+          { value: 'inactive', label: 'Desativados', count: inactiveList.length },
+        ]}
+      />
 
       {/* List */}
       {loading ? (
@@ -167,12 +190,23 @@ export function BorrowersView() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button
-                    onClick={() => openDelete(b)}
-                    className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-danger" />
-                  </button>
+                  {tab === 'inactive' ? (
+                    <button
+                      title="Reativar cliente"
+                      onClick={() => handleReactivate(b)}
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-neon-dim flex items-center justify-center transition-colors"
+                    >
+                      <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    <button
+                      title="Desativar cliente"
+                      onClick={() => openDeactivate(b)}
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
+                    >
+                      <UserX className="w-3.5 h-3.5 text-muted-foreground hover:text-danger" />
+                    </button>
+                  )}
                   <button
                     onClick={() => router.push(`/borrowers/${b.id}`)}
                     className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-surface-elevated flex items-center justify-center transition-colors"
@@ -292,29 +326,31 @@ export function BorrowersView() {
       </Dialog>
 
       {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
         <DialogContent className="bg-surface border-border text-foreground sm:max-w-md sm:rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-danger">Excluir Cliente</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-foreground">Desativar cliente</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Tem certeza que deseja excluir <strong className="text-foreground">{selected?.name}</strong>? 
-              Todos os empréstimos e parcelas associados serão removidos.
+              <strong className="text-foreground">{selected?.name}</strong> sai da sua lista e as cobranças
+              automáticas param. <strong className="text-foreground">Nada é apagado</strong>: os contratos e o
+              histórico continuam guardados, e você pode trazer o cliente de volta a qualquer momento na
+              aba &quot;Desativados&quot;.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button
               variant="secondary"
-              onClick={() => setDeleteOpen(false)}
+              onClick={() => setDeactivateOpen(false)}
               className="bg-surface-elevated text-foreground hover:bg-secondary rounded-xl flex-1"
             >
               Cancelar
             </Button>
             <Button
-              onClick={handleDelete}
+              onClick={handleDeactivate}
               disabled={submitting}
               className="bg-danger text-white hover:bg-danger/90 font-semibold rounded-xl flex-1"
             >
-              {submitting ? 'Excluindo...' : 'Excluir'}
+              {submitting ? 'Desativando...' : 'Desativar'}
             </Button>
           </DialogFooter>
         </DialogContent>

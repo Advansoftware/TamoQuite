@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { formatDate } from '@/lib/helpers';
 import {
-  Plus, UserPlus, Shield, Trash2, ChevronRight, Ticket, Gift, RotateCcw, Loader2,
+  Plus, UserPlus, Shield, UserX, UserCheck, ChevronRight, Ticket, Gift, RotateCcw, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -13,11 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  useAdminUsers, useCreateUser, useDeactivateUser, useResetTrial,
+  useAdminUsers, useCreateUser, useDeactivateUser, useReactivateUser, useResetTrial,
   useCoupons, useCreateCoupon, useApplyCoupon,
 } from '@/features/admin/use-admin';
 import type { Coupon, ManagedUser } from '@/features/admin/types';
 import { Spinner } from '@/components/ui/spinner';
+import { FilterTabs } from '@/components/ui/filter-tabs';
 
 const SUPER_ADMIN_EMAIL = 'brunoantunes94@hotmail.com';
 
@@ -44,9 +45,12 @@ function couponLabel(c: Coupon): string {
 export function AdminView() {
   const router = useRouter();
   const { user } = useAppStore();
-  const { data: users = [], isLoading: loading } = useAdminUsers();
+  const [userTab, setUserTab] = useState<'active' | 'inactive'>('active');
+  const { data: users = [], isLoading: loading } = useAdminUsers(userTab);
+  const { data: inactiveUsers = [] } = useAdminUsers('inactive');
   const createUser = useCreateUser();
   const deactivateUser = useDeactivateUser();
+  const reactivateUser = useReactivateUser();
   const resetTrial = useResetTrial();
   const submitting = createUser.isPending;
 
@@ -191,6 +195,15 @@ export function AdminView() {
         </div>
       )}
 
+      <FilterTabs
+        value={userTab}
+        onChange={setUserTab}
+        options={[
+          { value: 'active', label: 'Ativos' },
+          { value: 'inactive', label: 'Desativados', count: inactiveUsers.length },
+        ]}
+      />
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Spinner />
@@ -261,13 +274,23 @@ export function AdminView() {
                           <RotateCcw className="w-3.5 h-3.5 text-warning" />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDeactivate(u.id)}
-                        className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
-                        title="Desativar"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      </button>
+                      {userTab === 'inactive' ? (
+                        <button
+                          onClick={async () => { await reactivateUser.mutateAsync(u.id); toast.success('Usuário reativado.'); }}
+                          className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-neon-dim flex items-center justify-center transition-colors"
+                          title="Reativar usuário"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDeactivate(u.id)}
+                          className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-secondary hover:bg-danger/10 flex items-center justify-center transition-colors"
+                          title="Desativar usuário"
+                        >
+                          <UserX className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

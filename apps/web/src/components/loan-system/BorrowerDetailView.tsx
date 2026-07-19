@@ -106,7 +106,10 @@ export function BorrowerDetailView() {
       });
       const errMsg = await getApiError(res);
       if (errMsg) throw new Error(errMsg);
-      toast.success('Cobrança enviada!');
+      toast.success('Cobrança enviada!', {
+        description: 'Veja a mensagem e se ela chegou.',
+        action: { label: 'Ver mensagem', onClick: () => router.push('/cobrancas') },
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao enviar cobrança');
     } finally {

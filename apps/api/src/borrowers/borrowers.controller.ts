@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { SubscriptionGuard } from '../common/subscription.guard';
 import { CurrentUser } from '../common/current-user.decorator';
@@ -11,8 +11,11 @@ export class BorrowersController {
   constructor(private readonly borrowers: BorrowersService) {}
 
   @Get()
-  list(@CurrentUser('id') userId: string) {
-    return this.borrowers.list(userId);
+  list(
+    @CurrentUser('id') userId: string,
+    @Query('status') status?: 'active' | 'inactive' | 'all',
+  ) {
+    return this.borrowers.list(userId, status ?? 'active');
   }
 
   @Post()
@@ -34,8 +37,15 @@ export class BorrowersController {
     return this.borrowers.update(userId, id, dto);
   }
 
+  // Kept as DELETE for the existing clients, but it only deactivates —
+  // no client record is ever erased.
   @Delete(':id')
-  remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
-    return this.borrowers.remove(userId, id);
+  deactivate(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.borrowers.deactivate(userId, id);
+  }
+
+  @Post(':id/reactivate')
+  reactivate(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.borrowers.reactivate(userId, id);
   }
 }
