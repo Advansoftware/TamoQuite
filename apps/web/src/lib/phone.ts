@@ -101,11 +101,15 @@ export function parsePhone(value: string): { country: Country; national: string 
   return { country: DEFAULT_COUNTRY, national: digits };
 }
 
-/** Formats a stored value for read-only display (lists, cards). */
+/**
+ * Formats a stored value for read-only display (lists, cards). The flag already
+ * identifies the country, so the dial code is left out — it only added noise.
+ * `toE164Digits` remains the source of truth for anything dialled or sent.
+ */
 export function formatPhoneDisplay(value: string): string {
   const { country, national } = parsePhone(value);
   if (!national) return value;
-  return `${country.flag} +${country.dial} ${country.format(national)}`;
+  return `${country.flag} ${country.format(national)}`;
 }
 
 /** Returns the full international digits (dial code + national), no "+". */
