@@ -123,11 +123,14 @@ export class ShareService {
         // Already published to debtors in charge messages; lets them reply to a human.
         contactPhone: loan.user.billingSettings?.contactPhone ?? null,
       },
-      borrower: { name: loan.borrower.name },
+      // The debtor's own phone, shown so they can confirm the contract is
+      // really theirs. Nothing else from the borrower record is exposed.
+      borrower: { name: loan.borrower.name, phone: loan.borrower.whatsapp },
       contract: {
-        originalAmount: loan.originalAmount,
+        // Principal and rate are deliberately absent: the debtor is shown what
+        // they owe, not how the lender priced it. Leaving them in the JSON would
+        // expose them to anyone who opens devtools, even though nothing renders them.
         totalAmount: loan.totalAmount,
-        interestRate: loan.interestRate,
         installmentCount: loan.installmentCount,
         startDate: loan.startDate,
         paymentFrequency: loan.paymentFrequency,

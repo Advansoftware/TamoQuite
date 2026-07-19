@@ -20,11 +20,9 @@ interface SharedInstallment {
 
 interface SharedContract {
   lender: { name: string; contactPhone: string | null };
-  borrower: { name: string };
+  borrower: { name: string; phone: string };
   contract: {
-    originalAmount: number;
     totalAmount: number;
-    interestRate: number;
     installmentCount: number;
     startDate: string;
     paymentFrequency: string;
@@ -98,8 +96,11 @@ export function SharedContractView({ token }: { token: string }) {
         <div className="bg-surface border border-border rounded-2xl p-4 space-y-1">
           <p className="text-xs text-muted-foreground">Contrato de</p>
           <h1 className="text-xl font-bold text-foreground">{borrower.name}</h1>
+          {borrower.phone && (
+            <p className="text-sm text-muted-foreground">{formatPhone(borrower.phone)}</p>
+          )}
           <p className="text-xs text-muted-foreground pt-1">
-            Criado em {formatDate(contract.createdAt)}
+            Início em {formatDate(contract.createdAt)}
           </p>
         </div>
 
@@ -146,7 +147,6 @@ export function SharedContractView({ token }: { token: string }) {
         <div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
           <h2 className="text-sm font-semibold text-foreground">Como foi combinado</h2>
           <dl className="space-y-2 text-sm">
-            <Row label="Valor emprestado" value={formatCurrency(contract.originalAmount)} />
             <Row label="Valor a pagar" value={formatCurrency(contract.totalAmount)} />
             <Row
               label="Parcelas"
