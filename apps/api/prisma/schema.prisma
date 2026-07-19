@@ -198,12 +198,19 @@ model ChargeLog {
   id                 String      @id @default(cuid())
   installmentId      String
   installment        Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
-  type               String // REMINDER | DUE | OVERDUE
-  status             String // SENT | FAILED
+  type               String // REMINDER | DUE | OVERDUE | MANUAL
+  status             String // QUEUED | SENT | FAILED
   message            String      @db.Text
   evolutionMessageId String?
   error              String?     @db.Text
   sentAt             DateTime    @default(now())
+  // Delivery receipts from WhatsApp (MESSAGES_UPDATE webhook). `status: SENT`
+  // only means WhatsApp accepted the message — these say it actually landed.
+  deliveryStatus     String? // DELIVERED | READ
+  deliveredAt        DateTime?
+  readAt             DateTime?
 
   @@index([installmentId, type, sentAt])
+  @@index([evolutionMessageId])
+  @@index([sentAt])
 }

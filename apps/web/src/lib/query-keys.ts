@@ -8,6 +8,8 @@ export const qk = {
   subscription: ['subscription'] as const,
   me: ['me'] as const,
   billingSettings: ['settings', 'billing'] as const,
+  chargeHistory: (status?: string) => ['settings', 'billing', 'history', status ?? 'all'] as const,
+  chargeHistorySummary: ['settings', 'billing', 'history', 'summary'] as const,
   whatsappStatus: ['whatsapp', 'status'] as const,
   adminUsers: ['admin', 'users'] as const,
   adminCoupons: ['admin', 'coupons'] as const,

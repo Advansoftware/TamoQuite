@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { apiPost } from '@/lib/api';
-import { LayoutDashboard, Users, FileText, Shield, LogOut, KeyRound, Settings, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Shield, LogOut, KeyRound, Settings, Menu, Send } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -109,6 +109,13 @@ export function BottomNav() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { setSettingsOpen(false); router.push('/cobrancas'); }}
+                className="flex items-center gap-2 px-4 py-3 bg-surface-elevated rounded-xl text-sm text-foreground hover:bg-secondary transition-colors"
+              >
+                <Send className="w-4 h-4 text-muted-foreground" />
+                Cobranças enviadas
+              </button>
               <button
                 onClick={() => { setSettingsOpen(false); router.push('/settings'); }}
                 className="flex items-center gap-2 px-4 py-3 bg-surface-elevated rounded-xl text-sm text-foreground hover:bg-secondary transition-colors"

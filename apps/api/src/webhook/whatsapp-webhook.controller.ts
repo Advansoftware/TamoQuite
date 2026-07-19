@@ -28,11 +28,52 @@ export class WhatsappWebhookController {
   @HttpCode(200)
   async handle(@Body() body: any) {
     try {
-      await this.process(body);
+      const event = String(body?.event || '').toLowerCase().replace(/_/g, '.');
+      if (event === 'messages.update') {
+        await this.processReceipt(body);
+      } else {
+        await this.process(body);
+      }
     } catch (err: any) {
       this.logger.warn(`webhook processing failed: ${err?.message}`);
     }
     return { received: true };
+  }
+
+  /**
+   * Delivery/read receipts. Applies to every instance (own numbers and the
+   * shared pool alike) because the user needs to know a charge actually landed —
+   * `status: SENT` only means WhatsApp accepted it. Matching is by the message id
+   * we stored when sending, so a receipt can never touch another user's log.
+   */
+  private async processReceipt(body: any) {
+    const data = Array.isArray(body?.data) ? body.data[0] : body?.data;
+    if (!data) return;
+
+    const messageId: string | undefined = data.keyId || data.key?.id || data.id;
+    if (!messageId) return;
+
+    const raw = data.status ?? data.update?.status;
+    const s = typeof raw === 'number' ? raw : String(raw ?? '').toUpperCase();
+    let deliveryStatus: 'DELIVERED' | 'READ' | null = null;
+    if (s === 3 || s === 'DELIVERY_ACK') deliveryStatus = 'DELIVERED';
+    else if (s === 4 || s === 5 || s === 'READ' || s === 'PLAYED') deliveryStatus = 'READ';
+    if (!deliveryStatus) return; // SERVER_ACK/PENDING add nothing over SENT
+
+    const log = await this.prisma.chargeLog.findFirst({ where: { evolutionMessageId: messageId } });
+    if (!log) return;
+    // Never downgrade a READ back to DELIVERED (receipts can arrive out of order).
+    if (log.deliveryStatus === 'READ') return;
+
+    const now = new Date();
+    await this.prisma.chargeLog.update({
+      where: { id: log.id },
+      data: {
+        deliveryStatus,
+        deliveredAt: log.deliveredAt ?? now,
+        readAt: deliveryStatus === 'READ' ? now : log.readAt,
+      },
+    });
   }
 
   private async process(body: any) {

@@ -41,7 +41,8 @@ export class EvolutionService {
         payload.webhook = {
           url: this.webhookUrl,
           byEvents: false,
-          events: ['MESSAGES_UPSERT'],
+          // UPSERT drives the auto-reply; UPDATE carries the delivery/read receipts.
+          events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'],
         };
       }
       await this.http.post('/instance/create', payload);

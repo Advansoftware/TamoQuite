@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { BillingSettingsService } from './billing-settings.service';
+import { ChargeHistoryService } from './charge-history.service';
 import { BillingCron } from './billing.cron';
 
 @UseGuards(JwtAuthGuard)
@@ -9,6 +10,7 @@ import { BillingCron } from './billing.cron';
 export class BillingController {
   constructor(
     private readonly settings: BillingSettingsService,
+    private readonly history: ChargeHistoryService,
     private readonly cron: BillingCron,
   ) {}
 
@@ -20,6 +22,28 @@ export class BillingController {
   @Put()
   async update(@CurrentUser('id') userId: string, @Body() body: Record<string, unknown>) {
     return this.settings.update(userId, body);
+  }
+
+  // Sent-charges history. Scoped to the caller's own contracts by the service.
+  @Get('history')
+  async listHistory(
+    @CurrentUser('id') userId: string,
+    @Query('status') status?: string,
+    @Query('borrowerId') borrowerId?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.history.list(userId, {
+      status,
+      borrowerId,
+      cursor,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('history/summary')
+  async historySummary(@CurrentUser('id') userId: string) {
+    return this.history.summary(userId);
   }
 
   // Manual trigger — runs the billing sweep for the current user right now (useful for testing).
