@@ -11,6 +11,10 @@ export interface ReportSummary {
     outstanding: number;
     /** Juros previstos: o que entra além do valor emprestado. */
     expectedProfit: number;
+    /** O que já deveria ter entrado até hoje (parcelas vencidas ou vencendo hoje). */
+    expectedToDate: number;
+    /** Capital próprio ainda não devolvido nos contratos em andamento. */
+    activeCapital: number;
   };
   byStatus: { ACTIVE: number; COMPLETED: number; CANCELED: number };
   monthly: { key: string; label: string; received: number }[];

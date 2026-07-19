@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TrendingUp, Clock } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useReportSummary } from '@/features/reports/use-reports';
 import { FilterTabs } from '@/components/ui/filter-tabs';
@@ -18,14 +18,6 @@ import { STATUS_COLOR, STATUS_LABEL } from '@/components/charts/chart-theme';
  * a new entry here — nothing else has to change. Wording is deliberately plain:
  * the reader is a lender, not an analyst.
  */
-
-/** Reports not built yet. Listed so the screen shows where it is going. */
-const UPCOMING = [
-  { key: 'projetado', title: 'Projetado x Realizado', hint: 'O que você esperava receber e o que entrou de verdade.' },
-  { key: 'custo', title: 'Custo x Recebido', hint: 'Quanto saiu do seu bolso e quanto já voltou.' },
-  { key: 'ativo', title: 'Custo Ativo', hint: 'Quanto do seu dinheiro está na rua agora.' },
-];
-
 export function ReportsView() {
   const [months, setMonths] = useState(6);
   const { data, isLoading } = useReportSummary(months);
@@ -46,6 +38,12 @@ export function ReportsView() {
   }
 
   const { totals, byStatus, monthly } = data;
+
+  // Capital recuperado, limitado a 100% — o que passa disso é lucro, dito em texto.
+  const recoveredPct =
+    totals.totalLent > 0
+      ? Math.round((Math.min(totals.totalReceived, totals.totalLent) / totals.totalLent) * 100)
+      : 0;
 
   return (
     <div className="space-y-4 pb-6">
@@ -107,21 +105,63 @@ export function ReportsView() {
         </p>
       </ChartCard>
 
-      <div className="space-y-2 pt-2">
-        <p className="text-sm font-semibold text-foreground">Em breve</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {UPCOMING.map((r) => (
-            <div key={r.key} className="bg-surface rounded-2xl border border-border p-4 opacity-70">
-              <div className="w-9 h-9 rounded-xl bg-surface-elevated flex items-center justify-center mb-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">{r.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{r.hint}</p>
-              <p className="text-[11px] text-muted-foreground mt-2">Em breve</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <ChartCard
+        title="Projetado x Realizado"
+        hint="O que você esperava receber até hoje e o que entrou de verdade. Parcelas que ainda não venceram não entram na conta."
+        table={[
+          { label: 'Previsto até hoje', value: formatCurrency(totals.expectedToDate) },
+          { label: 'Recebido', value: formatCurrency(totals.totalReceived) },
+          { label: 'Diferença', value: formatCurrency(totals.totalReceived - totals.expectedToDate) },
+        ]}
+      >
+        <ColumnChart
+          data={[
+            { label: 'Previsto', value: totals.expectedToDate },
+            { label: 'Recebido', value: totals.totalReceived },
+          ]}
+          formatValue={(v) => formatCurrency(v)}
+        />
+        <p className="text-xs text-muted-foreground">
+          {totals.totalReceived < totals.expectedToDate
+            ? `Faltam ${formatCurrency(totals.expectedToDate - totals.totalReceived)} do que já era esperado.`
+            : 'Você está em dia com o que era esperado até agora.'}
+        </p>
+      </ChartCard>
+
+      <ChartCard
+        title="Custo x Recebido"
+        hint="Quanto saiu do seu bolso e quanto já voltou, somando tudo (capital + juros)."
+        table={[
+          { label: 'Saiu do seu bolso', value: formatCurrency(totals.totalLent) },
+          { label: 'Já voltou', value: formatCurrency(totals.totalReceived) },
+          { label: 'Capital recuperado', value: `${recoveredPct}%` },
+        ]}
+      >
+        <ColumnChart
+          data={[
+            { label: 'Emprestado', value: totals.totalLent },
+            { label: 'Recebido', value: totals.totalReceived },
+          ]}
+          formatValue={(v) => formatCurrency(v)}
+        />
+        <p className="text-xs text-muted-foreground">
+          {totals.totalReceived >= totals.totalLent
+            ? `Você já recuperou tudo que emprestou e está ${formatCurrency(totals.totalReceived - totals.totalLent)} acima.`
+            : `Você já recuperou ${recoveredPct}% do que emprestou.`}
+        </p>
+      </ChartCard>
+
+      <ChartCard
+        title="Custo Ativo"
+        hint="Quanto do seu dinheiro está na rua agora — contratos em andamento que ainda não devolveram o que você colocou."
+      >
+        <p className="text-2xl font-bold text-warning tabular-nums">{formatCurrency(totals.activeCapital)}</p>
+        <p className="text-xs text-muted-foreground">
+          {totals.activeCapital > 0
+            ? `De ${formatCurrency(totals.totalLent)} emprestados, é o que ainda não voltou pro seu bolso.`
+            : 'Todo o dinheiro que você emprestou já voltou.'}
+        </p>
+      </ChartCard>
     </div>
   );
 }

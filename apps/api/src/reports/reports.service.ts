@@ -30,6 +30,7 @@ export class ReportsService {
             amount: true,
             paidAmount: true,
             paidAt: true,
+            dueDate: true,
             status: true,
             partialPayments: { select: { amount: true, createdAt: true } },
           },
@@ -42,6 +43,11 @@ export class ReportsService {
     let totalReceived = 0;
     let outstanding = 0;
     let expectedTotal = 0; // principal + juros combinados dos contratos que valem
+    let expectedToDate = 0; // o que já deveria ter entrado (parcelas vencidas ou vencendo hoje)
+    let activeCapital = 0; // capital próprio ainda "na rua" nos contratos em andamento
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
     // Build the month buckets first so empty months still render (a gap in a
     // time series is information; a missing bar is a lie).
@@ -74,11 +80,16 @@ export class ReportsService {
         expectedTotal += loan.totalAmount;
       }
 
+      let receivedForLoan = 0;
+
       for (const inst of loan.installments) {
         const paid = inst.paidAmount || 0;
         if (counts) {
           totalReceived += paid;
+          receivedForLoan += paid;
           if (inst.status !== 'PAID') outstanding += Math.max(0, inst.amount - paid);
+          // Só conta como "projetado" o que já venceu — o futuro ainda não devia ter entrado.
+          if (new Date(inst.dueDate) <= todayEnd) expectedToDate += inst.amount;
         }
 
         // A full payment writes paidAmount/paidAt with no PartialPayment row;
@@ -87,6 +98,12 @@ export class ReportsService {
         const fromRows = inst.partialPayments.reduce((s, p) => s + p.amount, 0);
         for (const p of inst.partialPayments) addReceipt(p.createdAt, p.amount);
         addReceipt(inst.paidAt, paid - fromRows);
+      }
+
+      // Dinheiro seu que ainda não voltou, só nos contratos em andamento.
+      // Quitados já devolveram o capital; cancelados saíram de jogo.
+      if (counts && loan.status !== 'COMPLETED') {
+        activeCapital += Math.max(0, loan.originalAmount - receivedForLoan);
       }
     }
 
@@ -99,6 +116,10 @@ export class ReportsService {
         outstanding: round(outstanding),
         // O que você ganha além do que emprestou (juros previstos).
         expectedProfit: round(expectedTotal - totalLent),
+        // Projetado x Realizado: o que já deveria ter entrado até hoje.
+        expectedToDate: round(expectedToDate),
+        // Custo Ativo: quanto do seu dinheiro ainda está na rua.
+        activeCapital: round(activeCapital),
       },
       byStatus,
       monthly: timeline.map((m) => ({ ...m, received: round(buckets.get(m.key) ?? 0) })),
