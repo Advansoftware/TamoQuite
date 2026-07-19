@@ -14,6 +14,7 @@ import { GlobalWhatsappModule } from './global-whatsapp/global-whatsapp.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhookModule } from './webhook/webhook.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { WebhookModule } from './webhook/webhook.module';
     OutboundModule,
     BillingModule,
     WebhookModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}
