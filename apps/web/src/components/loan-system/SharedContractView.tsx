@@ -98,9 +98,6 @@ export function SharedContractView({ token }: { token: string }) {
         <div className="bg-surface border border-border rounded-2xl p-4 space-y-1">
           <p className="text-xs text-muted-foreground">Contrato de</p>
           <h1 className="text-xl font-bold text-foreground">{borrower.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            com <span className="text-foreground font-medium">{lender.name}</span>
-          </p>
           <p className="text-xs text-muted-foreground pt-1">
             Criado em {formatDate(contract.createdAt)}
           </p>
