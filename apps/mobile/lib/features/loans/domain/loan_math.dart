@@ -22,6 +22,22 @@ double rateFromTotal(double principal, double total, int installments) {
   return rate <= 0 ? 0 : (rate * 100).round() / 100;
 }
 
+/// Avança uma data em `count` períodos, igual a `addPeriods` do servidor:
+/// semanal = +7 dias, quinzenal = **+15** dias, mensal = +1 mês de calendário.
+DateTime addPeriods(DateTime base, String frequency, int count) {
+  return switch (frequency) {
+    'WEEKLY' => DateTime(base.year, base.month, base.day + 7 * count),
+    'BIWEEKLY' => DateTime(base.year, base.month, base.day + 15 * count),
+    _ => DateTime(base.year, base.month + count, base.day),
+  };
+}
+
+/// Cronograma padrão: a primeira parcela vence em [start] e cada uma cai um
+/// período depois. É o mesmo que o servidor gera quando `dueDates` é omitido.
+List<DateTime> buildSchedule(DateTime start, String frequency, int count) {
+  return List.generate(count, (index) => addPeriods(start, frequency, index));
+}
+
 /// Divide o total em parcelas que somam exatamente o total, distribuindo os
 /// centavos que sobram nas primeiras — igual a `splitIntoInstallments`.
 List<double> splitIntoInstallments(double total, int count) {

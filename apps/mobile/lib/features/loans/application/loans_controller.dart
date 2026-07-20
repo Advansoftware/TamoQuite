@@ -60,6 +60,7 @@ class LoanActions {
     required int installmentCount,
     required DateTime startDate,
     required PaymentFrequency frequency,
+    List<DateTime>? dueDates,
   }) async {
     final loan = await _repository.create(
       borrowerId: borrowerId,
@@ -69,9 +70,53 @@ class LoanActions {
       installmentCount: installmentCount,
       startDate: startDate,
       frequency: frequency,
+      dueDates: dueDates,
     );
     _invalidateTotals();
     return loan;
+  }
+
+  /// Corrige o contrato (`PATCH /loans/:id`). O servidor reconstrói as parcelas
+  /// quando o dinheiro muda; se algo já foi pago ele recusa com mensagem
+  /// própria — a tela só a exibe.
+  Future<Loan> update(
+    String id, {
+    String? borrowerId,
+    double? originalAmount,
+    double? interestRate,
+    double? totalAmount,
+    int? installmentCount,
+    DateTime? startDate,
+    PaymentFrequency? frequency,
+    List<DateTime>? dueDates,
+  }) async {
+    final loan = await _repository.update(
+      id,
+      borrowerId: borrowerId,
+      originalAmount: originalAmount,
+      interestRate: interestRate,
+      totalAmount: totalAmount,
+      installmentCount: installmentCount,
+      startDate: startDate,
+      frequency: frequency,
+      dueDates: dueDates,
+    );
+    _ref.invalidate(loanDetailProvider(id));
+    _invalidateTotals();
+    return loan;
+  }
+
+  Future<void> updateBilling(
+    String id, {
+    required bool doNotCharge,
+    required String? whatsappMode,
+  }) async {
+    await _repository.updateBilling(
+      id,
+      doNotCharge: doNotCharge,
+      whatsappMode: whatsappMode,
+    );
+    _ref.invalidate(loanDetailProvider(id));
   }
 
   /// Exclui o contrato. É soft delete no banco, mas irreversível pelo app:
@@ -99,6 +144,43 @@ class LoanActions {
   Future<void> undoPayment(String loanId, String installmentId) async {
     await _repository.undoPayment(installmentId);
     _afterInstallmentChange(loanId);
+  }
+
+  Future<void> setInstallmentDueDate(
+    String loanId,
+    String installmentId,
+    DateTime dueDate,
+  ) async {
+    await _repository.setInstallmentDueDate(installmentId, dueDate);
+    _afterInstallmentChange(loanId);
+  }
+
+  Future<void> rollRemaining(String loanId, String installmentId) async {
+    await _repository.rollRemaining(installmentId);
+    _afterInstallmentChange(loanId);
+  }
+
+  Future<void> payInterest(
+    String loanId,
+    String installmentId,
+    double interestAmount, {
+    required bool rollImmediately,
+  }) async {
+    await _repository.payInterest(
+      installmentId,
+      interestAmount,
+      rollImmediately: rollImmediately,
+    );
+    _afterInstallmentChange(loanId);
+  }
+
+  Future<void> setInstallmentCharge(
+    String loanId,
+    String installmentId, {
+    required bool doNotCharge,
+  }) async {
+    await _repository.setInstallmentCharge(installmentId, doNotCharge: doNotCharge);
+    _ref.invalidate(loanDetailProvider(loanId));
   }
 
   /// Pagar uma parcela pode concluir o contrato, então o status na listagem

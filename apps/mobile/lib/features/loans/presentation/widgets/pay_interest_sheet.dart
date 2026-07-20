@@ -7,37 +7,42 @@ import '../../../../core/widgets/tq_primary_button.dart';
 import '../../../../core/widgets/tq_text_field.dart';
 import '../../domain/installment.dart';
 
-/// Registra um pagamento parcial de uma parcela. Retorna o valor informado,
-/// ou `null` se cancelado.
-///
-/// A validação de "não exceder o restante" também roda no servidor
-/// (`installments.controller.ts`); aqui é só para dar retorno imediato.
-Future<double?> showPartialPaymentSheet(
+/// Resultado do pagamento de juros: o valor e se a parcela deve ser rolada
+/// (empurrada um período à frente) na hora.
+class PayInterestResult {
+  const PayInterestResult({required this.amount, required this.rollImmediately});
+
+  final double amount;
+  final bool rollImmediately;
+}
+
+/// Registra o pagamento só dos juros de uma parcela — quando o devedor paga
+/// para "segurar" a dívida sem amortizar. Opcionalmente já rola a parcela.
+Future<PayInterestResult?> showPayInterestSheet(
   BuildContext context,
   Installment installment,
 ) {
-  return showModalBottomSheet<double>(
+  return showModalBottomSheet<PayInterestResult>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => _PartialPaymentSheet(installment: installment),
+    builder: (_) => _PayInterestSheet(installment: installment),
   );
 }
 
-class _PartialPaymentSheet extends StatefulWidget {
-  const _PartialPaymentSheet({required this.installment});
+class _PayInterestSheet extends StatefulWidget {
+  const _PayInterestSheet({required this.installment});
 
   final Installment installment;
 
   @override
-  State<_PartialPaymentSheet> createState() => _PartialPaymentSheetState();
+  State<_PayInterestSheet> createState() => _PayInterestSheetState();
 }
 
-class _PartialPaymentSheetState extends State<_PartialPaymentSheet> {
+class _PayInterestSheetState extends State<_PayInterestSheet> {
   final _amount = TextEditingController();
+  bool _rollImmediately = true;
   String? _error;
-
-  double get _remaining => widget.installment.remaining;
 
   @override
   void dispose() {
@@ -47,20 +52,13 @@ class _PartialPaymentSheetState extends State<_PartialPaymentSheet> {
 
   void _submit() {
     final value = MoneyInput.parse(_amount.text);
-
     if (value <= 0) {
       setState(() => _error = 'Informe um valor maior que zero.');
       return;
     }
-    // O restante é comparado em centavos: 0.1 + 0.2 em double não fecha 0.3,
-    // e um pagamento que quita a parcela não pode ser recusado por isso.
-    if ((value * 100).round() > (_remaining * 100).round()) {
-      setState(() => _error =
-          'Valor acima do restante (${Formatters.currency(_remaining)}).');
-      return;
-    }
-
-    Navigator.of(context).pop(value);
+    Navigator.of(context).pop(
+      PayInterestResult(amount: value, rollImmediately: _rollImmediately),
+    );
   }
 
   @override
@@ -90,7 +88,7 @@ class _PartialPaymentSheetState extends State<_PartialPaymentSheet> {
             ),
           ),
           Text(
-            'Pagamento parcial',
+            'Pagar juros',
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 18,
@@ -99,7 +97,7 @@ class _PartialPaymentSheetState extends State<_PartialPaymentSheet> {
           const SizedBox(height: 4),
           Text(
             'Parcela ${widget.installment.installmentNumber} · '
-            'restam ${Formatters.currency(_remaining)}',
+            '${Formatters.currency(widget.installment.amount)}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.brand.mutedForeground,
             ),
@@ -107,13 +105,28 @@ class _PartialPaymentSheetState extends State<_PartialPaymentSheet> {
           const SizedBox(height: 20),
 
           TqTextField(
-            label: 'Valor recebido',
+            label: 'Valor dos juros',
             controller: _amount,
-            hintText: 'R\$ 0,00',
+            hintText: r'R$ 0,00',
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 8),
+
+          SwitchListTile.adaptive(
+            value: _rollImmediately,
+            onChanged: (value) => setState(() => _rollImmediately = value),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text('Rolar a parcela', style: theme.textTheme.bodyMedium),
+            subtitle: Text(
+              'Empurra esta parcela e as seguintes um período à frente.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.brand.mutedForeground,
+              ),
+            ),
           ),
 
           if (_error != null) ...[

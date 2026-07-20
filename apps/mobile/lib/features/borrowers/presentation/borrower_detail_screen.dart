@@ -12,6 +12,7 @@ import '../../../core/widgets/tq_state_views.dart';
 import '../../../core/widgets/tq_status_badge.dart';
 import '../../../core/widgets/tq_stat_card.dart';
 import '../../loans/presentation/widgets/loan_card.dart';
+import '../../loans/presentation/widgets/loan_form_sheet.dart';
 import '../application/borrowers_controller.dart';
 import '../domain/borrower.dart';
 import '../domain/borrower_detail.dart';
@@ -26,9 +27,18 @@ class BorrowerDetailScreen extends ConsumerWidget {
 
   final String borrowerId;
 
+  Future<void> _newLoan(BuildContext context) async {
+    final loanId = await showCreateLoanSheet(context, fixedBorrowerId: borrowerId);
+    if (loanId != null && context.mounted) {
+      context.push(AppRoutes.loanDetail(loanId));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(borrowerDetailProvider(borrowerId));
+    // Só clientes ativos recebem contrato novo — a API recusa o desativado.
+    final canLend = detail.value?.borrower.isActive ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -43,6 +53,13 @@ class BorrowerDetailScreen extends ConsumerWidget {
             ),
         ],
       ),
+      floatingActionButton: canLend
+          ? FloatingActionButton.extended(
+              onPressed: () => _newLoan(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Emprestar'),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(borrowerDetailProvider(borrowerId).future),
         child: switch (detail) {

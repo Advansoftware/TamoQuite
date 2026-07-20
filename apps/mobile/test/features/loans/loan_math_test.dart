@@ -39,6 +39,31 @@ void main() {
     });
   });
 
+  group('addPeriods / buildSchedule', () {
+    test('semanal soma 7 dias por período', () {
+      final schedule = buildSchedule(DateTime(2026, 1, 1), 'WEEKLY', 3);
+      expect(schedule, [
+        DateTime(2026, 1, 1),
+        DateTime(2026, 1, 8),
+        DateTime(2026, 1, 15),
+      ]);
+    });
+
+    test('quinzenal soma 15 dias (não 14), como o servidor', () {
+      final schedule = buildSchedule(DateTime(2026, 1, 1), 'BIWEEKLY', 2);
+      expect(schedule, [DateTime(2026, 1, 1), DateTime(2026, 1, 16)]);
+    });
+
+    test('mensal anda de mês em mês', () {
+      final schedule = buildSchedule(DateTime(2026, 1, 10), 'MONTHLY', 3);
+      expect(schedule, [
+        DateTime(2026, 1, 10),
+        DateTime(2026, 2, 10),
+        DateTime(2026, 3, 10),
+      ]);
+    });
+  });
+
   group('splitIntoInstallments', () {
     test('soma exatamente o total, distribuindo os centavos', () {
       final parts = splitIntoInstallments(250, 3);

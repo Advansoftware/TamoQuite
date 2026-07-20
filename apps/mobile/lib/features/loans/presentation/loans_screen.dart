@@ -13,9 +13,9 @@ import '../../../core/widgets/tq_search_field.dart';
 import '../../../core/widgets/tq_state_views.dart';
 import '../application/loans_controller.dart';
 import '../domain/loan.dart';
-import 'widgets/create_loan_sheet.dart';
 import 'widgets/delete_loan_dialog.dart';
 import 'widgets/loan_card.dart';
+import 'widgets/loan_form_sheet.dart';
 
 /// Lista de contratos — espelha `LoansView.tsx`.
 class LoansScreen extends ConsumerStatefulWidget {

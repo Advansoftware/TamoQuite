@@ -1,4 +1,10 @@
-# Publicação na Google Play — TamoQuite 1.0.0
+# Publicação na Google Play — TamoQuite
+
+> **Versão atual a enviar: 1.1.0 (versionCode 2).** Traz os módulos completos de
+> Clientes e Empréstimos (cadastro, correção, parcelas, pagamento de juros,
+> rolagem, cobrança por contrato e link público de compartilhamento). A **1.0.0**
+> (versionCode 1) é a que já está publicada e continua em
+> `~/Downloads/tamoquite-playstore/tamoquite-1.0.0-1.aab`.
 
 ## ⚠️ Antes de tudo: guarde o keystore
 
@@ -27,9 +33,13 @@ Em `~/Downloads/tamoquite-playstore/`:
 
 | Arquivo | Uso |
 |---|---|
-| `tamoquite-1.0.0-1.aab` | O app. Envie em *Produção → Criar versão* |
+| `tamoquite-1.1.0-2.aab` | **Versão nova.** Envie em *Produção → Criar versão* |
+| `tamoquite-1.0.0-1.aab` | Versão já publicada (histórico) |
 | `play-icon-512.png` | Ícone da ficha (512×512) |
 | `BACKUP-tamoquite-upload.jks` | **Não envie** — mova para um cofre |
+
+Cada `.aab` é assinado com o mesmo keystore de upload, então a 1.1.0 sobe como
+atualização normal da 1.0.0 — o versionCode 2 &gt; 1 é o que o Play exige.
 
 O AAB tem ~52 MB porque inclui arm64, armv7 e x86_64. O Google Play divide
 por aparelho: o download real fica em torno de 15–20 MB.
@@ -41,7 +51,7 @@ por aparelho: o download real fica em torno de 15–20 MB.
 ### Identidade do app
 - **Nome:** TamoQuite
 - **Package:** `app.tamoquite.mobile` (bate com o `applicationId`)
-- **Versão:** 1.0.0 (versionCode 1)
+- **Versão:** 1.1.0 (versionCode 2)
 - **Categoria sugerida:** Finanças
 - **Idioma padrão:** Português (Brasil)
 
@@ -113,10 +123,11 @@ O bundle nunca foi executado em aparelho. Vale instalar via *Teste interno*
 
 ## Próximas versões
 
-Incremente o build number a cada envio — o Play rejeita versionCode repetido:
+Incremente o build number a cada envio — o Play rejeita versionCode repetido.
+A próxima passa de `1.1.0+2`:
 
 ```bash
-flutter build appbundle --release --build-number=2
+flutter build appbundle --release --build-number=3
 ```
 
-Ou atualize `version: 1.0.0+2` no `pubspec.yaml`.
+Ou atualize `version: 1.1.0+3` (ou `1.2.0+3`) no `pubspec.yaml`.

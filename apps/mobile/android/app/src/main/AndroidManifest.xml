@@ -51,5 +51,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- url_launcher: enviar o link do contrato pelo WhatsApp (wa.me em
+             https) e abrir a assinatura no navegador. No Android 11+ o app só
+             enxerga apps que casem com estas intents. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

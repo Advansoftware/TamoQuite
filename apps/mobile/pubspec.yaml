@@ -34,6 +34,10 @@ dependencies:
   # Token JWT no Keystore (Android) / Keychain (iOS) — nunca em SharedPreferences.
   flutter_secure_storage: ^10.3.1
   local_auth: ^3.0.2
+
+  # Abrir o WhatsApp (wa.me) para enviar o link público do contrato e abrir a
+  # página de assinatura no navegador. Precisa das <queries> no AndroidManifest.
+  url_launcher: ^6.3.1
   # Fixado em 0.20.2 pelo flutter_localizations do SDK.
   intl: ^0.20.2
 

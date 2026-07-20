@@ -68,6 +68,7 @@ class Loan {
     required this.status,
     required this.installments,
     required this.doNotCharge,
+    required this.whatsappMode,
   });
 
   final String id;
@@ -90,6 +91,10 @@ class Loan {
 
   /// Contrato marcado como "não cobrar" nas configurações de cobrança.
   final bool doNotCharge;
+
+  /// Modo de envio do contrato (`MANUAL` | `OWN` | `GLOBAL`); nulo herda as
+  /// configurações do usuário. Ver `LoanBillingCard`.
+  final String? whatsappMode;
 
   /// Soma das parcelas. O site totaliza a partir delas em vez de usar
   /// `totalAmount`, porque uma parcela rolada ou de juros muda o total do
@@ -142,6 +147,7 @@ class Loan {
       status: LoanStatus.fromWire(json['status']),
       installments: asList(json['installments'], Installment.fromJson),
       doNotCharge: asBool(json['doNotCharge']),
+      whatsappMode: json['whatsappMode'] as String?,
     );
   }
 }

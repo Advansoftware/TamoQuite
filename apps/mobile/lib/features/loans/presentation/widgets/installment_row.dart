@@ -5,23 +5,41 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/tq_status_badge.dart';
 import '../../domain/installment.dart';
 
-/// Linha de parcela na tela de detalhe do contrato.
-///
-/// Mostra número, vencimento e valor, e um menu com as ações de pagamento —
-/// quitar, registrar parcial, desfazer.
-class InstallmentRow extends StatelessWidget {
-  const InstallmentRow({
-    required this.installment,
+/// Ações disponíveis no menu de uma parcela.
+class InstallmentActions {
+  const InstallmentActions({
     required this.onMarkPaid,
     required this.onPartial,
     required this.onUndo,
+    required this.onChangeDueDate,
+    required this.onRoll,
+    required this.onPayInterest,
+    required this.onToggleCharge,
+  });
+
+  final VoidCallback onMarkPaid;
+  final VoidCallback onPartial;
+  final VoidCallback onUndo;
+  final VoidCallback onChangeDueDate;
+  final VoidCallback onRoll;
+  final VoidCallback onPayInterest;
+  final VoidCallback onToggleCharge;
+}
+
+/// Linha de parcela na tela de detalhe do contrato.
+///
+/// Mostra número, vencimento e valor, e um menu com as ações da parcela —
+/// quitar, parcial, desfazer, alterar vencimento, rolar, pagar juros e
+/// silenciar a cobrança.
+class InstallmentRow extends StatelessWidget {
+  const InstallmentRow({
+    required this.installment,
+    required this.actions,
     super.key,
   });
 
   final Installment installment;
-  final VoidCallback onMarkPaid;
-  final VoidCallback onPartial;
-  final VoidCallback onUndo;
+  final InstallmentActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -81,23 +99,34 @@ class InstallmentRow extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    _subtitle(),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: status.isOverdue
-                          ? theme.colorScheme.error
-                          : brand.mutedForeground,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _subtitle(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: status.isOverdue
+                                ? theme.colorScheme.error
+                                : brand.mutedForeground,
+                          ),
+                        ),
+                      ),
+                      if (installment.doNotCharge) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.notifications_off_outlined,
+                          size: 13,
+                          color: brand.mutedForeground,
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
-            _Menu(
-              installment: installment,
-              onMarkPaid: onMarkPaid,
-              onPartial: onPartial,
-              onUndo: onUndo,
-            ),
+            _Menu(installment: installment, actions: actions),
           ],
         ),
       ),
@@ -120,17 +149,10 @@ class InstallmentRow extends StatelessWidget {
 }
 
 class _Menu extends StatelessWidget {
-  const _Menu({
-    required this.installment,
-    required this.onMarkPaid,
-    required this.onPartial,
-    required this.onUndo,
-  });
+  const _Menu({required this.installment, required this.actions});
 
   final Installment installment;
-  final VoidCallback onMarkPaid;
-  final VoidCallback onPartial;
-  final VoidCallback onUndo;
+  final InstallmentActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +160,8 @@ class _Menu extends StatelessWidget {
     final status = installment.status;
     // Quitada ou parcial já têm pagamento: a ação é desfazer. Pendente/atrasada
     // ainda podem receber pagamento — total ou parcial.
-    final hasPayment = status.isPaid || status == InstallmentStatus.partial;
+    final isPartial = status == InstallmentStatus.partial;
+    final hasPayment = status.isPaid || isPartial;
 
     return PopupMenuButton<VoidCallback>(
       onSelected: (action) => action(),
@@ -147,17 +170,44 @@ class _Menu extends StatelessWidget {
       itemBuilder: (context) => [
         if (!status.isPaid)
           PopupMenuItem(
-            value: onMarkPaid,
+            value: actions.onMarkPaid,
             child: const _MenuRow(icon: Icons.check_circle_outline, label: 'Marcar como pago'),
           ),
         if (!status.isPaid)
           PopupMenuItem(
-            value: onPartial,
+            value: actions.onPartial,
             child: const _MenuRow(icon: Icons.payments_outlined, label: 'Pagamento parcial'),
           ),
+        if (!status.isPaid)
+          PopupMenuItem(
+            value: actions.onPayInterest,
+            child: const _MenuRow(icon: Icons.percent, label: 'Pagar juros'),
+          ),
+        // Rolar só faz sentido numa parcela parcial (regra do servidor).
+        if (isPartial)
+          PopupMenuItem(
+            value: actions.onRoll,
+            child: const _MenuRow(icon: Icons.fast_forward_outlined, label: 'Rolar parcela'),
+          ),
+        if (!status.isPaid)
+          PopupMenuItem(
+            value: actions.onChangeDueDate,
+            child: const _MenuRow(icon: Icons.event_outlined, label: 'Alterar vencimento'),
+          ),
+        PopupMenuItem(
+          value: actions.onToggleCharge,
+          child: _MenuRow(
+            icon: installment.doNotCharge
+                ? Icons.notifications_active_outlined
+                : Icons.notifications_off_outlined,
+            label: installment.doNotCharge
+                ? 'Voltar a cobrar'
+                : 'Não cobrar esta parcela',
+          ),
+        ),
         if (hasPayment)
           PopupMenuItem(
-            value: onUndo,
+            value: actions.onUndo,
             child: _MenuRow(
               icon: Icons.undo,
               label: 'Desfazer pagamento',

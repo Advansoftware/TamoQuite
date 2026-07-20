@@ -13,21 +13,35 @@ import '../domain/installment.dart';
 import '../domain/loan.dart';
 import 'widgets/delete_loan_dialog.dart';
 import 'widgets/installment_row.dart';
+import 'widgets/loan_billing_card.dart';
+import 'widgets/loan_form_sheet.dart';
 import 'widgets/partial_payment_sheet.dart';
+import 'widgets/pay_interest_sheet.dart';
+import 'widgets/share_loan_sheet.dart';
 
-/// Detalhe do contrato com as parcelas — espelha `LoanDetailView.tsx`
-/// (versão focada: resumo, lista de parcelas e ações de pagamento).
+/// Detalhe do contrato com as parcelas — espelha `LoanDetailView.tsx`.
+///
+/// Reúne resumo, condições, cobrança automática e a lista de parcelas, com
+/// todas as ações por parcela (quitar, parcial, juros, rolar, vencimento,
+/// silenciar, desfazer), além de corrigir, compartilhar e excluir o contrato.
 class LoanDetailScreen extends ConsumerWidget {
   const LoanDetailScreen({required this.loanId, super.key});
 
   final String loanId;
+
+  LoanActions _actions(WidgetRef ref) => ref.read(loanActionsProvider);
+
+  Future<void> _edit(BuildContext context, Loan loan) async {
+    final saved = await showEditLoanSheet(context, loan);
+    if (saved && context.mounted) _message(context, 'Contrato atualizado.');
+  }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, Loan loan) async {
     final confirmed = await showDeleteLoanDialog(context, loan);
     if (!confirmed) return;
 
     try {
-      await ref.read(loanActionsProvider).remove(loan.id);
+      await _actions(ref).remove(loan.id);
       if (context.mounted) {
         _message(context, 'Contrato excluído.');
         context.pop();
@@ -37,14 +51,14 @@ class LoanDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _markPaid(
+  Future<void> _run(
     BuildContext context,
-    WidgetRef ref,
-    Installment installment,
+    Future<void> Function() action,
+    String success,
   ) async {
     try {
-      await ref.read(loanActionsProvider).markPaid(loanId, installment.id);
-      if (context.mounted) _message(context, 'Parcela quitada.');
+      await action();
+      if (context.mounted) _message(context, success);
     } on ApiException catch (e) {
       if (context.mounted) _message(context, e.message);
     }
@@ -56,29 +70,112 @@ class LoanDetailScreen extends ConsumerWidget {
     Installment installment,
   ) async {
     final amount = await showPartialPaymentSheet(context, installment);
-    if (amount == null) return;
-
-    try {
-      await ref
-          .read(loanActionsProvider)
-          .addPartialPayment(loanId, installment.id, amount);
-      if (context.mounted) _message(context, 'Pagamento registrado.');
-    } on ApiException catch (e) {
-      if (context.mounted) _message(context, e.message);
-    }
+    if (amount == null || !context.mounted) return;
+    await _run(
+      context,
+      () => _actions(ref).addPartialPayment(loanId, installment.id, amount),
+      'Pagamento registrado.',
+    );
   }
 
-  Future<void> _undo(
+  Future<void> _payInterest(
     BuildContext context,
     WidgetRef ref,
     Installment installment,
   ) async {
-    try {
-      await ref.read(loanActionsProvider).undoPayment(loanId, installment.id);
-      if (context.mounted) _message(context, 'Pagamento desfeito.');
-    } on ApiException catch (e) {
-      if (context.mounted) _message(context, e.message);
-    }
+    final result = await showPayInterestSheet(context, installment);
+    if (result == null || !context.mounted) return;
+    await _run(
+      context,
+      () => _actions(ref).payInterest(
+        loanId,
+        installment.id,
+        result.amount,
+        rollImmediately: result.rollImmediately,
+      ),
+      result.rollImmediately ? 'Juros pagos e parcela rolada.' : 'Juros registrados.',
+    );
+  }
+
+  Future<void> _roll(
+    BuildContext context,
+    WidgetRef ref,
+    Installment installment,
+  ) async {
+    final confirmed = await _confirm(
+      context,
+      title: 'Rolar parcela',
+      message: 'O valor já pago vira uma parcela de juros e esta parcela '
+          '(com o saldo) e as seguintes vão um período à frente. Confirmar?',
+      confirmLabel: 'Rolar',
+    );
+    if (!confirmed || !context.mounted) return;
+    await _run(
+      context,
+      () => _actions(ref).rollRemaining(loanId, installment.id),
+      'Parcela rolada.',
+    );
+  }
+
+  Future<void> _changeDueDate(
+    BuildContext context,
+    WidgetRef ref,
+    Installment installment,
+  ) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: installment.dueDate,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 6),
+      helpText: 'Novo vencimento',
+    );
+    if (picked == null || !context.mounted) return;
+    await _run(
+      context,
+      () => _actions(ref).setInstallmentDueDate(loanId, installment.id, picked),
+      'Vencimento alterado.',
+    );
+  }
+
+  Future<void> _toggleCharge(
+    BuildContext context,
+    WidgetRef ref,
+    Installment installment,
+  ) async {
+    final mute = !installment.doNotCharge;
+    await _run(
+      context,
+      () => _actions(ref)
+          .setInstallmentCharge(loanId, installment.id, doNotCharge: mute),
+      mute ? 'Cobrança desta parcela silenciada.' : 'Cobrança reativada.',
+    );
+  }
+
+  Future<bool> _confirm(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
   }
 
   void _message(BuildContext context, String text) {
@@ -95,12 +192,33 @@ class LoanDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(loan.value?.borrower.name ?? 'Contrato'),
         actions: [
-          if (loan.hasValue)
+          if (loan.hasValue) ...[
             IconButton(
-              tooltip: 'Excluir contrato',
-              onPressed: () => _delete(context, ref, loan.value!),
-              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Compartilhar',
+              onPressed: () => showShareLoanSheet(context, loan.value!),
+              icon: const Icon(Icons.share_outlined),
             ),
+            PopupMenuButton<VoidCallback>(
+              onSelected: (action) => action(),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: () => _edit(context, loan.value!),
+                  child: const _MenuRow(
+                    icon: Icons.edit_outlined,
+                    label: 'Corrigir contrato',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: () => _delete(context, ref, loan.value!),
+                  child: _MenuRow(
+                    icon: Icons.delete_outline,
+                    label: 'Excluir contrato',
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
       body: RefreshIndicator(
@@ -108,9 +226,23 @@ class LoanDetailScreen extends ConsumerWidget {
         child: switch (loan) {
           AsyncData(:final value) => _Content(
             loan: value,
-            onMarkPaid: (i) => _markPaid(context, ref, i),
-            onPartial: (i) => _partial(context, ref, i),
-            onUndo: (i) => _undo(context, ref, i),
+            actionsFor: (installment) => InstallmentActions(
+              onMarkPaid: () => _run(
+                context,
+                () => _actions(ref).markPaid(loanId, installment.id),
+                'Parcela quitada.',
+              ),
+              onPartial: () => _partial(context, ref, installment),
+              onUndo: () => _run(
+                context,
+                () => _actions(ref).undoPayment(loanId, installment.id),
+                'Pagamento desfeito.',
+              ),
+              onChangeDueDate: () => _changeDueDate(context, ref, installment),
+              onRoll: () => _roll(context, ref, installment),
+              onPayInterest: () => _payInterest(context, ref, installment),
+              onToggleCharge: () => _toggleCharge(context, ref, installment),
+            ),
           ),
           AsyncError(:final error) => ListView(
             children: [
@@ -133,17 +265,10 @@ class LoanDetailScreen extends ConsumerWidget {
 }
 
 class _Content extends StatelessWidget {
-  const _Content({
-    required this.loan,
-    required this.onMarkPaid,
-    required this.onPartial,
-    required this.onUndo,
-  });
+  const _Content({required this.loan, required this.actionsFor});
 
   final Loan loan;
-  final ValueChanged<Installment> onMarkPaid;
-  final ValueChanged<Installment> onPartial;
-  final ValueChanged<Installment> onUndo;
+  final InstallmentActions Function(Installment) actionsFor;
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +284,8 @@ class _Content extends StatelessWidget {
             _Summary(loan: loan, isMobile: size.isMobile),
             const SizedBox(height: 16),
             _Terms(loan: loan),
+            const SizedBox(height: 16),
+            LoanBillingCard(loan: loan),
             const SizedBox(height: 24),
 
             TqSectionHeader(
@@ -169,9 +296,7 @@ class _Content extends StatelessWidget {
             for (final installment in loan.installments)
               InstallmentRow(
                 installment: installment,
-                onMarkPaid: () => onMarkPaid(installment),
-                onPartial: () => onPartial(installment),
-                onUndo: () => onUndo(installment),
+                actions: actionsFor(installment),
               ),
           ],
         );
@@ -265,6 +390,25 @@ class _Terms extends StatelessWidget {
           ),
         ),
         Text(value, style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label, this.color});
+
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 12),
+        Text(label, style: color == null ? null : TextStyle(color: color)),
       ],
     );
   }

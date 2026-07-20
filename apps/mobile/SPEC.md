@@ -65,11 +65,18 @@ Prefixo global `/api` (definido em `apps/api/src/main.ts`).
 | `POST /api/borrowers/:id/reactivate` 🔒💳 | Reativa cliente |
 | `GET /api/loans` 🔒💳 | Contratos vivos de clientes ativos |
 | `GET /api/loans/:id` 🔒💳 | Contrato + parcelas |
-| `POST /api/loans` 🔒💳 | Cria contrato (envia `totalAmount` explícito) |
+| `POST /api/loans` 🔒💳 | Cria contrato (`totalAmount` explícito, `dueDates` opcional) |
+| `PATCH /api/loans/:id` 🔒💳 | Corrige contrato (bloqueia dinheiro se há pagamento) |
 | `DELETE /api/loans/:id` 🔒💳 | Exclui contrato (soft delete sem volta) |
+| `PUT /api/loans/:id/billing` 🔒💳 | Cobrança automática do contrato |
+| `GET·POST·DELETE /api/loans/:id/share` 🔒💳 | Link público: ver, gerar, revogar |
 | `PUT /api/installments/:id` 🔒💳 | Quita a parcela |
 | `POST /api/installments/:id/partial-payments` 🔒💳 | Pagamento parcial |
 | `POST /api/installments/:id/undo-payment` 🔒💳 | Zera os pagamentos da parcela |
+| `POST /api/installments/:id/pay-interest` 🔒💳 | Pagar juros (rola se pedido) |
+| `POST /api/installments/:id/roll-remaining` 🔒💳 | Rola parcela parcial |
+| `PATCH /api/installments/:id/due-date` 🔒💳 | Move o vencimento da parcela |
+| `PATCH /api/installments/:id/charge` 🔒💳 | Silencia/reativa a cobrança |
 
 🔒 exige JWT · 💳 exige assinatura ativa (`SubscriptionGuard`)
 
@@ -141,9 +148,13 @@ entre as pilhas das abas.
 
 - **Cliente** (`BorrowerDetailScreen`): identidade, totais e os contratos dele —
   única tela que alcança contratos de um cliente **desativado**, já que a aba
-  Empréstimos filtra por cliente ativo.
-- **Contrato** (`LoanDetailScreen`): resumo, condições e a lista de parcelas,
-  com quitar / pagamento parcial / desfazer por parcela.
+  Empréstimos filtra por cliente ativo. Cliente ativo tem um botão *Emprestar*
+  que abre o cadastro de contrato já com ele fixado.
+- **Contrato** (`LoanDetailScreen`): resumo, condições, cobrança automática e a
+  lista de parcelas. Por parcela: quitar, pagamento parcial, **pagar juros**
+  (com rolagem opcional), **rolar** parcela parcial, **alterar vencimento**,
+  **silenciar/reativar** a cobrança e desfazer. No topo: **corrigir** o
+  contrato, **compartilhar** o link público e excluir.
 
 ---
 
@@ -236,12 +247,13 @@ O keystore de release fica em `android/key.properties` + `.jks`, ambos
 
 ## 8. Fora de escopo nesta versão
 
-Cobranças, Relatórios, Configurações e Admin (a última não entra no app) — no
-app aparecem como "em breve" na aba Mais. A troca de senha obrigatória
-(`mustChangePassword`) ainda não tem tela — hoje o usuário nessa situação
-entra normalmente; o site continua sendo o caminho para trocar a senha.
+Relatórios, Configurações (incl. o WhatsApp conectado) e Admin (a última não
+entra no app) — no app aparecem como "em breve" na aba Mais. A aba Cobranças do
+site (histórico de mensagens enviadas) também fica só no site: o app controla a
+cobrança **por contrato/parcela** (ligar/silenciar, escolher o número), mas não
+lista o histórico de envios nem envia manualmente pelo painel. A troca de senha
+obrigatória (`mustChangePassword`) ainda não tem tela — hoje o usuário nessa
+situação entra normalmente; o site continua sendo o caminho para trocar a senha.
 
-Dentro de Clientes/Empréstimos, ficaram para depois refinamentos do site que
-não são essenciais ao fluxo: datas de vencimento por parcela e o modo "à vista"
-na criação, correção/edição de contrato, rolagem de parcela e pagamento de
-juros, override de cobrança por contrato e o link público de compartilhamento.
+O envio do WhatsApp usa `url_launcher` (abre o `wa.me` no app instalado); o app
+não integra a API de mensagens diretamente.
