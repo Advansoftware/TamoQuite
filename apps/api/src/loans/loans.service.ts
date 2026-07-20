@@ -125,11 +125,17 @@ export class LoansService {
    * Corrects a contract that was created with the wrong numbers — a typo in the
    * value, the wrong number of parcelas, dates that don't match what was agreed.
    *
-   * Anything that changes the money rebuilds the schedule, so it is only allowed
-   * while the contract is untouched: the moment a parcela has been paid (even
-   * partially), rewriting the amounts would silently invalidate that payment.
-   * Fixing the client, on the other hand, never touches the schedule and stays
-   * available for the contract's whole life.
+   * Two levels of editing, depending on whether the contract has been touched:
+   *
+   *  - **Money** (valor, juros, total, nº de parcelas) rebuilds the whole
+   *    schedule, so it is only allowed while every parcela is still pending. Once
+   *    something is paid, rewriting the amounts would strand that payment against
+   *    a value that no longer exists — so it is refused.
+   *  - **Dates** (vencimentos, periodicidade) can be corrected at any time,
+   *    because moving a due date never invalidates a payment. A parcela that is
+   *    already quitada keeps its date though — that date is part of the settled
+   *    record — so only the still-open parcelas move.
+   *  - **The client** never touches the schedule and can always be fixed.
    *
    * Parcelas are reconciled in place rather than dropped and recreated, so the
    * ones that survive keep their id — and with it their cobrança history, which
@@ -142,27 +148,25 @@ export class LoansService {
     });
     if (!loan) throw new NotFoundException('Loan not found');
 
-    const touchesSchedule =
+    const touchesMoney =
       dto.originalAmount !== undefined ||
       dto.interestRate !== undefined ||
       dto.totalAmount !== undefined ||
-      dto.installmentCount !== undefined ||
-      dto.startDate !== undefined ||
-      dto.frequency !== undefined ||
-      dto.dueDates !== undefined;
+      dto.installmentCount !== undefined;
 
-    // A parcela with money on it is a fact about the past; rebuilding the
-    // schedule under it would leave a payment attached to an amount that no
-    // longer exists. Undo the payments first, then edit.
-    if (touchesSchedule) {
-      const settled = loan.installments.filter(
-        (inst) => inst.paidAmount > 0 || inst.status !== 'PENDING',
+    const touchesDates =
+      dto.startDate !== undefined || dto.frequency !== undefined || dto.dueDates !== undefined;
+
+    const hasPayments = loan.installments.some(
+      (inst) => inst.paidAmount > 0 || inst.status !== 'PENDING',
+    );
+
+    // Money changes rebuild the parcelas, so they need an untouched schedule.
+    // Undo the payments first, then edit the value or the parcelamento.
+    if (touchesMoney && hasPayments) {
+      throw new BadRequestException(
+        'Este contrato já tem parcelas pagas. Desfaça os pagamentos antes de alterar o valor ou o número de parcelas.',
       );
-      if (settled.length > 0) {
-        throw new BadRequestException(
-          'Este contrato já tem parcelas pagas. Desfaça os pagamentos antes de alterar valores, parcelas ou datas.',
-        );
-      }
     }
 
     const data: Record<string, unknown> = {};
@@ -175,10 +179,17 @@ export class LoansService {
       data.borrowerId = dto.borrowerId;
     }
 
-    if (!touchesSchedule) {
+    // Nothing about the schedule changed — just the client (or nothing at all).
+    if (!touchesMoney && !touchesDates) {
       if (Object.keys(data).length === 0) return this.get(userId, id);
       await this.prisma.loan.update({ where: { id }, data });
       return this.get(userId, id);
+    }
+
+    // Dates only: correct the vencimentos without rebuilding the amounts. Works
+    // even on a contract with payments, but a quitada parcela keeps its date.
+    if (!touchesMoney) {
+      return this.updateDatesOnly(userId, id, loan, dto, data);
     }
 
     // Rebuild from the merged state: whatever the user sent wins, everything
@@ -264,6 +275,66 @@ export class LoansService {
             }),
           ]
         : []),
+    ]);
+
+    return this.get(userId, id);
+  }
+
+  /**
+   * Corrects vencimentos on a contract without rebuilding the amounts — the only
+   * kind of edit allowed once a parcela has been paid. A quitada parcela never
+   * moves (its date is settled history); every still-open parcela takes the new
+   * date, with its atrasada flag recomputed the same way the per-parcela endpoint
+   * does, so a parcela pushed into the future stops showing as overdue.
+   *
+   * The parcela count is fixed here — changing it is a money edit, handled above.
+   */
+  private async updateDatesOnly(
+    userId: string,
+    id: string,
+    loan: { startDate: Date; paymentFrequency: string; installments: Array<{ id: string; status: string; dueDate: Date }> },
+    dto: UpdateLoanDto,
+    data: Record<string, unknown>,
+  ) {
+    const existing = loan.installments;
+    const frequency = normalizeFrequency(dto.frequency ?? loan.paymentFrequency);
+
+    if (dto.dueDates && dto.dueDates.length !== existing.length) {
+      throw new BadRequestException('As datas de vencimento não batem com o número de parcelas');
+    }
+
+    const start = parseDateOnly(dto.startDate ?? loan.startDate);
+    const dueDates = dto.dueDates
+      ? dto.dueDates.map((d) => parseDateOnly(d))
+      : existing.map((_v, idx) => addPeriods(start, frequency, idx));
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    // A quitada parcela keeps its date, so the loan's startDate anchors to the
+    // first parcela that actually moved (or its current start if none did).
+    const firstOpenIdx = existing.findIndex((inst) => inst.status !== 'PAID');
+
+    const dateUpdates = existing
+      .map((inst, idx) => {
+        if (inst.status === 'PAID') return null;
+        const dueDate = dueDates[idx];
+        const stillOpen = inst.status === 'PENDING' || inst.status === 'OVERDUE';
+        const status = stillOpen ? (dueDate < todayStart ? 'OVERDUE' : 'PENDING') : inst.status;
+        return this.prisma.installment.update({ where: { id: inst.id }, data: { dueDate, status } });
+      })
+      .filter((op): op is NonNullable<typeof op> => op !== null);
+
+    await this.prisma.$transaction([
+      this.prisma.loan.update({
+        where: { id },
+        data: {
+          ...data,
+          paymentFrequency: frequency,
+          startDate: firstOpenIdx >= 0 ? dueDates[firstOpenIdx] : loan.startDate,
+        },
+      }),
+      ...dateUpdates,
     ]);
 
     return this.get(userId, id);

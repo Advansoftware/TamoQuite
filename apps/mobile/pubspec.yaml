@@ -5,7 +5,7 @@ publish_to: 'none'
 # versionName / versionCode do Android vêm daqui (1.0.0 / 1).
 # Cada envio à Play Store precisa de um build number maior: use
 # `flutter build appbundle --build-number=N` ou incremente o `+N` abaixo.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.12.2

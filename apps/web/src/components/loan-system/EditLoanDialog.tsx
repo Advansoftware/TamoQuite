@@ -7,10 +7,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Percent, ArrowLeftRight, CalendarDays, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Percent, ArrowLeftRight, CalendarDays, ChevronDown, AlertTriangle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { calcFromRate, calcRateFromTotal, splitIntoInstallments, type CalcMode } from '@/features/loans/loan-math';
 import { buildSchedule } from '@/features/loans/schedule';
+
+interface EditInstallment {
+  dueDate: string;
+  status: string;
+  paidAmount: number;
+}
 
 interface EditLoanDialogProps {
   open: boolean;
@@ -22,23 +28,29 @@ interface EditLoanDialogProps {
     totalAmount: number;
     installmentCount: number;
     paymentFrequency?: string;
-    installments: Array<{ dueDate: string }>;
+    installments: EditInstallment[];
   };
   onSuccess: () => void;
 }
 
 /**
- * Corrects a contract that was created with the wrong numbers — the value, the
- * number of parcelas, the dates.
+ * Corrects a contract that was created with the wrong numbers.
  *
- * Unlike the create dialog this one starts populated with the contract as it is,
- * and it rewrites the whole schedule on save. The backend only accepts that while
- * nothing has been paid; the caller is responsible for not offering the button
- * once a parcela is settled, and the server rejects it anyway.
+ * Two modes, decided by whether any parcela has been paid:
+ *  - **Untouched contract** → full edit: value, juros, parcelamento and dates.
+ *    Saving rewrites the whole schedule.
+ *  - **Contract with payments** → the money is locked (rewriting the amounts
+ *    would strand the payments) and only the vencimentos of the parcelas ainda
+ *    em aberto can be adjusted. A quitada parcela is shown read-only.
+ *
+ * The backend enforces the same split, so this is a UX affordance, not the guard.
  */
 export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoanDialogProps) {
   const updateLoan = useUpdateLoan(loan.id);
   const submitting = updateLoan.isPending;
+
+  // A paid (even partially) parcela freezes the money side of the contract.
+  const locked = loan.installments.some((i) => i.paidAmount > 0 || i.status !== 'PENDING');
 
   const [calcMode, setCalcMode] = useState<CalcMode>('BY_RATE');
   const [singlePayment, setSinglePayment] = useState(false);
@@ -79,10 +91,11 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
           loan.installments.map((inst, idx) => [idx, inst.dueDate.split('T')[0]]),
         ),
       );
-      setDatesOpen(false);
+      // When only dates can change, open that section straight away.
+      setDatesOpen(locked);
     }, 0);
     return () => clearTimeout(timer);
-  }, [open, loan]);
+  }, [open, loan, locked]);
 
   const P = parseFloat(form.originalAmount) || 0;
   const n = singlePayment ? 1 : (parseInt(form.installmentCount) || 0);
@@ -115,10 +128,12 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
 
   const previewParts = splitIntoInstallments(previewTotal, n);
 
+  // Locked contracts never change the count, so the date list always tracks the
+  // real parcelas; otherwise it follows the count the user is typing.
+  const dateCount = locked ? loan.installments.length : n;
+
   // The periodic schedule is the fallback; anything the user kept or typed wins.
-  // On open every slot is pre-filled from the contract, so changing the
-  // frequency or the 1º vencimento only takes effect for slots the user clears.
-  const schedule = buildSchedule(form.startDate, form.frequency, n);
+  const schedule = buildSchedule(form.startDate, form.frequency, dateCount);
   const dueDates = schedule.map((d, idx) => dueDateOverrides[idx] || d);
 
   const setDueDate = (idx: number, value: string) => {
@@ -134,6 +149,20 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
   const resetDates = () => setDueDateOverrides({});
 
   const handleSave = async () => {
+    // Locked contract: only the vencimentos move. Send just the dates — the
+    // server keeps every quitada parcela on its own date regardless.
+    if (locked) {
+      try {
+        await updateLoan.mutateAsync({ dueDates });
+        toast.success('Vencimentos atualizados!');
+        onOpenChange(false);
+        onSuccess();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erro de conexão com o servidor');
+      }
+      return;
+    }
+
     let finalRate: number;
     if (singlePayment) {
       if (calcMode === 'BY_RATE') {
@@ -180,153 +209,172 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">Editar Contrato</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Corrija o valor, o parcelamento ou os vencimentos.
+            {locked
+              ? 'Ajuste os vencimentos das parcelas em aberto.'
+              : 'Corrija o valor, o parcelamento ou os vencimentos.'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-xl border border-warning/20 bg-warning/5 p-3 flex gap-2">
-          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-          <p className="text-xs text-muted-foreground">
-            As parcelas serão recalculadas. Só é possível editar enquanto nenhuma
-            parcela tiver sido paga.
-          </p>
-        </div>
+        {locked ? (
+          <div className="rounded-xl border border-border bg-surface-elevated p-3 flex gap-2">
+            <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              Este contrato já tem parcelas pagas. O valor e o número de parcelas
+              ficam travados — para alterá-los, desfaça os pagamentos primeiro.
+              Você ainda pode ajustar os vencimentos das parcelas em aberto.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-warning/20 bg-warning/5 p-3 flex gap-2">
+            <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              As parcelas serão recalculadas. O valor só pode ser alterado enquanto
+              nenhuma parcela tiver sido paga.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Valor Original (R$) *</label>
-            <Input
-              type="number"
-              step="0.01"
-              value={form.originalAmount}
-              onChange={(e) => setForm({ ...form, originalAmount: e.target.value })}
-              className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
-            />
-          </div>
-
-          <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
-            <button
-              type="button"
-              onClick={() => setSinglePayment(false)}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${!singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              Parcelado
-            </button>
-            <button
-              type="button"
-              onClick={() => setSinglePayment(true)}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              À vista (1x)
-            </button>
-          </div>
-
-          <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
-            <button
-              type="button"
-              onClick={() => setCalcMode('BY_RATE')}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_RATE' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              <Percent className="w-3.5 h-3.5" />
-              Informar {singlePayment ? '%' : 'Taxa'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCalcMode('BY_TOTAL')}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_TOTAL' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-              Informar Total
-            </button>
-          </div>
-
-          {calcMode === 'BY_RATE' ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {singlePayment ? 'Juros (%)' : `Taxa de Juros (% ${periodAbbr}) *`}
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                value={form.interestRate}
-                onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
-              />
-              <p className="text-xs text-muted-foreground">
-                {singlePayment
-                  ? 'Juros único sobre o valor emprestado. Deixe 0 para receber o mesmo valor.'
-                  : `Juros de ${form.interestRate || 'X'}% por ${periodNoun} sobre o valor emprestado`}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Total a Receber (R$) *</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={form.totalAmount}
-                onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
-              />
-            </div>
-          )}
-
-          {!singlePayment && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Periodicidade *</label>
-              <Select
-                value={form.frequency}
-                onValueChange={(v) => {
-                  // A new periodicidade invalidates the dates loaded from the
-                  // contract — rebuild them instead of leaving stale ones that
-                  // no longer match the frequency the user just picked.
-                  setForm({ ...form, frequency: v });
-                  resetDates();
-                }}
-              >
-                <SelectTrigger className="w-full bg-surface-elevated border-border text-foreground rounded-xl data-[size=default]:h-11 h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-elevated border-border">
-                  <SelectItem value="WEEKLY" className="text-foreground">Semanal (a cada 7 dias)</SelectItem>
-                  <SelectItem value="BIWEEKLY" className="text-foreground">Quinzenal (a cada 15 dias)</SelectItem>
-                  <SelectItem value="MONTHLY" className="text-foreground">Mensal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {!singlePayment && (
+          {/* Money side — hidden entirely once the contract has payments. */}
+          {!locked && (
+            <>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Número de Parcelas *</label>
+                <label className="text-sm font-medium">Valor Original (R$) *</label>
                 <Input
                   type="number"
-                  min="1"
-                  step="1"
-                  value={form.installmentCount}
-                  onChange={(e) => setForm({ ...form, installmentCount: e.target.value })}
+                  step="0.01"
+                  value={form.originalAmount}
+                  onChange={(e) => setForm({ ...form, originalAmount: e.target.value })}
                   className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
                 />
               </div>
-            )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{singlePayment ? 'Data de Vencimento *' : '1º Vencimento *'}</label>
-              <Input
-                type="date"
-                value={dueDates[0] || form.startDate}
-                onChange={(e) => {
-                  // Moving the first due date re-anchors the whole schedule.
-                  setForm({ ...form, startDate: e.target.value });
-                  resetDates();
-                }}
-                className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
-              />
-            </div>
-          </div>
+              <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSinglePayment(false)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${!singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Parcelado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSinglePayment(true)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${singlePayment ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  À vista (1x)
+                </button>
+              </div>
 
-          {!singlePayment && n > 0 && form.startDate && (
+              <div className="bg-surface-elevated rounded-xl p-1 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCalcMode('BY_RATE')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_RATE' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  Informar {singlePayment ? '%' : 'Taxa'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalcMode('BY_TOTAL')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${calcMode === 'BY_TOTAL' ? 'bg-neon text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  Informar Total
+                </button>
+              </div>
+
+              {calcMode === 'BY_RATE' ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    {singlePayment ? 'Juros (%)' : `Taxa de Juros (% ${periodAbbr}) *`}
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.interestRate}
+                    onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+                    className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {singlePayment
+                      ? 'Juros único sobre o valor emprestado. Deixe 0 para receber o mesmo valor.'
+                      : `Juros de ${form.interestRate || 'X'}% por ${periodNoun} sobre o valor emprestado`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Total a Receber (R$) *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.totalAmount}
+                    onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
+                    className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                  />
+                </div>
+              )}
+
+              {!singlePayment && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Periodicidade *</label>
+                  <Select
+                    value={form.frequency}
+                    onValueChange={(v) => {
+                      // A new periodicidade invalidates the dates loaded from the
+                      // contract — rebuild them instead of leaving stale ones.
+                      setForm({ ...form, frequency: v });
+                      resetDates();
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-surface-elevated border-border text-foreground rounded-xl data-[size=default]:h-11 h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-surface-elevated border-border">
+                      <SelectItem value="WEEKLY" className="text-foreground">Semanal (a cada 7 dias)</SelectItem>
+                      <SelectItem value="BIWEEKLY" className="text-foreground">Quinzenal (a cada 15 dias)</SelectItem>
+                      <SelectItem value="MONTHLY" className="text-foreground">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {!singlePayment && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Número de Parcelas *</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={form.installmentCount}
+                      onChange={(e) => setForm({ ...form, installmentCount: e.target.value })}
+                      className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{singlePayment ? 'Data de Vencimento *' : '1º Vencimento *'}</label>
+                  <Input
+                    type="date"
+                    value={dueDates[0] || form.startDate}
+                    onChange={(e) => {
+                      // Moving the first due date re-anchors the whole schedule.
+                      setForm({ ...form, startDate: e.target.value });
+                      resetDates();
+                    }}
+                    className="bg-surface-elevated border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Per-installment due dates. In locked mode this is the only editable
+              part, and quitada parcelas are shown read-only. */}
+          {dateCount > 0 && form.startDate && (locked || !singlePayment) && (
             <div className="rounded-xl border border-border overflow-hidden">
               <button
                 type="button"
@@ -345,31 +393,43 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
                     <p className="text-xs text-muted-foreground">
                       Altere qualquer data se combinou outro dia.
                     </p>
-                    <button
-                      type="button"
-                      onClick={resetDates}
-                      className="text-xs text-neon hover:underline shrink-0 cursor-pointer"
-                    >
-                      Recalcular
-                    </button>
+                    {!locked && (
+                      <button
+                        type="button"
+                        onClick={resetDates}
+                        className="text-xs text-neon hover:underline shrink-0 cursor-pointer"
+                      >
+                        Recalcular
+                      </button>
+                    )}
                   </div>
-                  {dueDates.map((date, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-16 shrink-0">{idx + 1}ª parcela</span>
-                      <Input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDueDate(idx, e.target.value)}
-                        className="bg-surface-elevated border-border text-foreground rounded-lg h-9 text-xs flex-1"
-                      />
-                    </div>
-                  ))}
+                  {dueDates.map((date, idx) => {
+                    // In locked mode each row maps to a real parcela; a quitada
+                    // one can't move (its date is settled history).
+                    const inst = locked ? loan.installments[idx] : undefined;
+                    const isPaid = inst?.status === 'PAID';
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-16 shrink-0">{idx + 1}ª parcela</span>
+                        <Input
+                          type="date"
+                          value={date}
+                          disabled={isPaid}
+                          onChange={(e) => setDueDate(idx, e.target.value)}
+                          className="bg-surface-elevated border-border text-foreground rounded-lg h-9 text-xs flex-1 disabled:opacity-50"
+                        />
+                        {isPaid && (
+                          <span className="text-[10px] text-neon font-medium shrink-0">paga</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          {previewTotal > 0 && (
+          {!locked && previewTotal > 0 && (
             <div className="bg-neon-dim rounded-xl p-4 border border-neon/20 space-y-2">
               <p className="text-xs text-neon font-medium">💰 Como vai ficar</p>
               <div className="flex justify-between">
@@ -406,10 +466,10 @@ export function EditLoanDialog({ open, onOpenChange, loan, onSuccess }: EditLoan
           </Button>
           <Button
             onClick={handleSave}
-            disabled={submitting || !P || !n || (calcMode === 'BY_TOTAL' && !totalInput)}
+            disabled={submitting || (!locked && (!P || !n || (calcMode === 'BY_TOTAL' && !totalInput)))}
             className="bg-neon text-background hover:bg-neon/90 font-semibold rounded-xl flex-1 cursor-pointer"
           >
-            {submitting ? 'Salvando...' : 'Salvar Alterações'}
+            {submitting ? 'Salvando...' : locked ? 'Salvar Vencimentos' : 'Salvar Alterações'}
           </Button>
         </DialogFooter>
       </DialogContent>

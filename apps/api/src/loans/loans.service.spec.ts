@@ -346,3 +346,68 @@ describe('LoansService.update — correção de contrato', () => {
     );
   });
 });
+
+describe('LoansService.update — datas com contrato já pago', () => {
+  function makeUpdatePrisma(loan: unknown) {
+    return {
+      borrower: { findFirst: vi.fn().mockResolvedValue({ id: 'b2', userId: 'u1' }) },
+      loan: { findFirst: vi.fn().mockResolvedValue(loan), update: vi.fn() },
+      installment: { update: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+      $transaction: vi.fn().mockResolvedValue([]),
+    } as unknown as PrismaService;
+  }
+
+  const paidLoan = {
+    id: 'loan1',
+    userId: 'u1',
+    borrowerId: 'b1',
+    originalAmount: 200,
+    interestRate: 5,
+    totalAmount: 220,
+    installmentCount: 2,
+    startDate: new Date(Date.UTC(2026, 0, 10, 12)),
+    paymentFrequency: 'MONTHLY',
+    installments: [
+      { id: 'i1', installmentNumber: 1, amount: 110, status: 'PAID', paidAmount: 110, dueDate: new Date(Date.UTC(2026, 0, 10, 12)) },
+      { id: 'i2', installmentNumber: 2, amount: 110, status: 'PENDING', paidAmount: 0, dueDate: new Date(Date.UTC(2026, 1, 10, 12)) },
+    ],
+  };
+
+  it('move só as parcelas em aberto e não toca na quitada', async () => {
+    const prisma = makeUpdatePrisma(paidLoan);
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { dueDates: ['2026-01-10', '2026-05-20'] });
+
+    const calls = (prisma.installment.update as ReturnType<typeof vi.fn>).mock.calls;
+    // A parcela paga (i1) fica de fora; só a i2 é atualizada.
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0].where.id).toBe('i2');
+    expect((calls[0][0].data.dueDate as Date).getUTCMonth()).toBe(4); // Mai
+    expect((calls[0][0].data.dueDate as Date).getUTCDate()).toBe(20);
+    // Nunca cria nem apaga parcela num ajuste só de datas.
+    expect(prisma.installment.createMany).not.toHaveBeenCalled();
+    expect(prisma.installment.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('não recalcula valores num ajuste só de datas', async () => {
+    const prisma = makeUpdatePrisma(paidLoan);
+    const service = new LoansService(prisma);
+
+    await service.update('u1', 'loan1', { dueDates: ['2026-01-10', '2026-05-20'] });
+
+    const data = (prisma.loan.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.totalAmount).toBeUndefined();
+    expect(data.originalAmount).toBeUndefined();
+    expect(data.installmentCount).toBeUndefined();
+  });
+
+  it('recusa datas que não batem com o número de parcelas', async () => {
+    const prisma = makeUpdatePrisma(paidLoan);
+    const service = new LoansService(prisma);
+
+    await expect(
+      service.update('u1', 'loan1', { dueDates: ['2026-01-10'] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});

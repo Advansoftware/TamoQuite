@@ -240,11 +240,6 @@ export function LoanDetailView() {
   const remainingAmount = loan.installments.reduce((sum, i) => sum + (i.amount - (i.paidAmount || 0)), 0);
   const progressPercent = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
 
-  // Correcting a contract rebuilds every parcela, which would strand any payment
-  // already recorded against the old amounts. So it is offered only while the
-  // whole schedule is still pending.
-  const canEdit = loan.installments.every((i) => i.status === 'PENDING' && !i.paidAmount);
-
   return (
     <div className="space-y-4 pb-6">
       {/* Botão de Voltar */}
@@ -257,17 +252,16 @@ export function LoanDetailView() {
           Voltar
         </button>
         <div className="flex items-center gap-2">
-          {/* Editing rewrites the parcelas, so it is only offered while the
-              contract is untouched. The API enforces the same rule. */}
-          {canEdit && (
-            <button
-              onClick={() => setEditOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3.5 h-11 sm:h-auto sm:py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
-            >
-              <Pencil className="w-4 h-4 text-neon" />
-              Editar
-            </button>
-          )}
+          {/* Always available: an untouched contract can be fully edited, a
+              paid one only has its future vencimentos adjusted. The dialog and
+              the API both enforce which fields are open. */}
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 h-11 sm:h-auto sm:py-2 bg-surface border border-border hover:bg-secondary text-foreground text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer"
+          >
+            <Pencil className="w-4 h-4 text-neon" />
+            Editar
+          </button>
           <ShareContractButton
             loanId={loan.id}
             borrowerName={loan.borrower.name}

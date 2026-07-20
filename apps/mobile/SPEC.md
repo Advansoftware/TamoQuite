@@ -124,12 +124,26 @@ pilha de navegação.
 
 | Aba | Rota | Estado |
 |---|---|---|
-| Painel | `/dashboard` | ✅ implementada |
-| Clientes | `/borrowers` | placeholder |
-| Empréstimos | `/loans` | placeholder |
+| Painel | `/dashboard` | ✅ métricas + listas de parcelas |
+| Clientes | `/borrowers` | ✅ lista, busca, abas ativos/desativados, CRUD |
+| Empréstimos | `/loans` | ✅ lista, filtros, criação, exclusão |
 | Mais | `/mais` | conta, bloqueio do app, logout |
 
 Em telas ≥ 640px a `NavigationBar` inferior vira `NavigationRail` lateral.
+
+### Telas de detalhe
+
+`/borrowers/:id` e `/loans/:id` vivem **fora** do shell, no navegador raiz —
+empilham sobre as abas com AppBar e botão de voltar próprios. Ficam fora do
+shell de propósito: um contrato aberto pela tela do cliente (aba Clientes) não
+pode depender do histórico da aba Empréstimos, e assim não há navegação cruzada
+entre as pilhas das abas.
+
+- **Cliente** (`BorrowerDetailScreen`): identidade, totais e os contratos dele —
+  única tela que alcança contratos de um cliente **desativado**, já que a aba
+  Empréstimos filtra por cliente ativo.
+- **Contrato** (`LoanDetailScreen`): resumo, condições e a lista de parcelas,
+  com quitar / pagamento parcial / desfazer por parcela.
 
 ---
 
@@ -222,7 +236,12 @@ O keystore de release fica em `android/key.properties` + `.jks`, ambos
 
 ## 8. Fora de escopo nesta versão
 
-Telas de Clientes, Empréstimos, Cobranças, Relatórios, Configurações e Admin
-(a última não entra no app). A troca de senha obrigatória
+Cobranças, Relatórios, Configurações e Admin (a última não entra no app) — no
+app aparecem como "em breve" na aba Mais. A troca de senha obrigatória
 (`mustChangePassword`) ainda não tem tela — hoje o usuário nessa situação
 entra normalmente; o site continua sendo o caminho para trocar a senha.
+
+Dentro de Clientes/Empréstimos, ficaram para depois refinamentos do site que
+não são essenciais ao fluxo: datas de vencimento por parcela e o modo "à vista"
+na criação, correção/edição de contrato, rolagem de parcela e pagamento de
+juros, override de cobrança por contrato e o link público de compartilhamento.
