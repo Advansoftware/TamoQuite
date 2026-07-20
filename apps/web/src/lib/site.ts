@@ -31,6 +31,6 @@ export function getSiteUrl(): string {
     process.env.SITE_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.WEB_URL ||
-    'https://tamoquite.com.br';
+    'https://tamoquite.app';
   return raw.replace(/\/$/, '');
 }
