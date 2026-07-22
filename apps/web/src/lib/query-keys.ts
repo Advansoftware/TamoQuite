@@ -7,10 +7,14 @@ export const qk = {
   loan: (id: string) => ['loans', id] as const,
   loanShare: (id: string) => ['loans', id, 'share'] as const,
   dashboard: ['dashboard'] as const,
+  // Prefix that matches every reports query (any `months` window).
+  reports: ['reports'] as const,
   reportSummary: (months: number) => ['reports', 'summary', months] as const,
   subscription: ['subscription'] as const,
   me: ['me'] as const,
   billingSettings: ['settings', 'billing'] as const,
+  // Prefix that matches the charge-history list (any status) and its summary.
+  chargeHistoryAll: ['settings', 'billing', 'history'] as const,
   chargeHistory: (status?: string) => ['settings', 'billing', 'history', status ?? 'all'] as const,
   chargeHistorySummary: ['settings', 'billing', 'history', 'summary'] as const,
   whatsappStatus: ['whatsapp', 'status'] as const,

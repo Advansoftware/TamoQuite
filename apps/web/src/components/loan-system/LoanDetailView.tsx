@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { LoanBillingCard } from './LoanBillingCard';
 import { apiFetch, apiPut, apiPost, apiPatch, apiDelete, getApiError } from '@/lib/api';
+import { useInvalidateLoans } from '@/features/loans/use-loans';
 import {
   formatCurrency,
   formatDate,
@@ -106,6 +107,7 @@ export function LoanDetailView() {
   const router = useRouter();
   const selectedLoanId = params.id as string;
   const queryClient = useQueryClient();
+  const invalidateLoans = useInvalidateLoans();
 
   const [payOpen, setPayOpen] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);
@@ -128,9 +130,12 @@ export function LoanDetailView() {
     enabled: !!selectedLoanId,
   });
 
+  // A payment/installment change ripples out to every contract-derived screen
+  // (loans list, dashboard, borrowers, reports, pending charges) plus this open
+  // contract's own detail — refresh all of them so nothing needs a manual F5.
   const invalidate = () => {
+    invalidateLoans();
     queryClient.invalidateQueries({ queryKey: ['loan', selectedLoanId] });
-    queryClient.invalidateQueries({ queryKey: ['loans'] });
   };
 
   const payFullMutation = useMutation({

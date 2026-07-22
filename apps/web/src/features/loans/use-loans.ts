@@ -10,13 +10,21 @@ export function useLoans() {
   });
 }
 
-/** Invalidate the queries a loan change can affect. Exposed so dialogs can refresh after create. */
+/**
+ * Invalidate every query that derives from a contract or its payments.
+ * A single source of truth so any loan/installment/payment change refreshes
+ * *all* screens at once — the loans list, dashboard metrics, borrowers' totals,
+ * the reports figures and the pending charges — without a manual refresh (F5).
+ * Exposed so dialogs and the loan detail view can reuse it.
+ */
 export function useInvalidateLoans() {
   const qc = useQueryClient();
   return () => {
     qc.invalidateQueries({ queryKey: qk.loans });
     qc.invalidateQueries({ queryKey: qk.dashboard });
     qc.invalidateQueries({ queryKey: qk.borrowers });
+    qc.invalidateQueries({ queryKey: qk.reports });
+    qc.invalidateQueries({ queryKey: qk.chargeHistoryAll });
   };
 }
 
